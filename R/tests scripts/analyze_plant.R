@@ -38,6 +38,11 @@ if (!requireNamespace("ggplot2", quietly = TRUE))
 
 library(ggplot2)
 
+if (!requireNamespace("here", quietly = TRUE))
+  stop("Package 'here' is required.")
+
+library(here)
+
 if (!requireNamespace("mgcv", quietly = TRUE))
   log_msg("   Package 'mgcv' not installed (needed for GAM-based surfaces)\n")
 
@@ -47,7 +52,7 @@ if (!requireNamespace("fields", quietly = TRUE))
 ## ---- 3. Load data ----------------------------------------------------------
 log_msg("\n3. Loading Crescent Pond puppyfish data...\n")
 
-crescent_path <- "E:/OMSCS/CS8903_Research/R_for_evolution - Copy/R-for-Evolution/R/Crescent+Pond+-+size-corrected+trait+data+++survival+++growth+++d13C+++d15N.csv"
+crescent_path <- here("R", "test_data", "Crescent+Pond+-+size-corrected+trait+data+++survival+++growth+++d13C+++d15N.csv")
 crescent_data <- read.csv(crescent_path)
 
 fitness_binary     <- "survival"
