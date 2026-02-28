@@ -103,6 +103,8 @@ analysis_data_clean <- analysis_data %>%
     !is.na(height)
   )
 
+names(analysis_data_clean) <- make.names(names(analysis_data_clean))
+
 trait_cols <- c("SLA", "deltaC13", "FDsnow", "height")
 
 cat("Families retained:", nrow(analysis_data_clean), "\n")
@@ -112,7 +114,7 @@ fecund_cols <- grep("_fecund", names(analysis_data_clean), value = TRUE)
 surv_cols <- grep("_surv|survived", names(analysis_data_clean), value = TRUE)
 flower_cols <- grep("_flr", names(analysis_data_clean), value = TRUE)
 
-main_fecund_col <- grep("^2013_.*fecund",
+main_fecund_col <- grep("^X2013_.*fecund",
   names(analysis_data_clean),
   value = TRUE
 )[1]
