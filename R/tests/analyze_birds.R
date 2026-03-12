@@ -2,14 +2,24 @@
 
 cat("Current working directory:", getwd(), "\n")
 
-# Go up one level from /test scripts and into /test_data
-data_path <- "../test_data/bird_data.csv"
+# Load 'here' for path management
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+library(here)
+
+data_path <- here("R", "data", "bird_data.csv")
 
 if (file.exists(data_path)) {
   bird_study <- read.csv(data_path, stringsAsFactors = FALSE)
-  cat("bird_data.csv loaded\n")
+  cat("bird_data.csv loaded from", data_path, "\n")
 } else {
-  stop("bird_data.csv not found.")
+  # Try fallback location if R/test_data doesn't exist
+  data_path_fallback <- here("test_data", "bird_data.csv")
+  if (file.exists(data_path_fallback)) {
+    bird_study <- read.csv(data_path_fallback, stringsAsFactors = FALSE)
+    cat("bird_data.csv loaded from", data_path_fallback, "\n")
+  } else {
+    stop("bird_data.csv not found at ", data_path, " or ", data_path_fallback)
+  }
 }
 
 # Remove duplicate X.y.* columns
@@ -50,7 +60,7 @@ if (all(beak_cols %in% names(bird_study))) {
 
 ## 2. LOAD REQUIRED PACKAGES ---------------------------------------------------
 
-required_packages <- c("ggplot2", "dplyr", "tidyr", "mgcv", "fields", "purrr")
+required_packages <- c("ggplot2", "dplyr", "tidyr", "mgcv", "fields", "purrr", "here")
 for (pkg in required_packages) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
     install.packages(pkg)
@@ -62,20 +72,34 @@ for (pkg in required_packages) {
 ## 3. LOAD ALL FUNCTIONS -------------------------------------------------------
 
 function_files <- c(
-  "prepare_selection_data.R", "analyze_linear_selection.R", "analyze_nonlinear_selection.R",
   "extract_results.R", "selection_coefficients.R", "detect_family.R", "selection_differential.R", 
   "univariate_spline.R", "univariate_surface.R", "correlational_tps.R", "correlation_surface.R", 
   "bootstrap_selection.R"
 )
 
+script_files <- c(
+  "1_prepare_selection_data.R", "2_linear_selection_analysis.R", "3_nonlinear_selection_analysis.R"
+)
+
 for (file in function_files) {
-  file_path <- paste0("../", file)
+  file_path <- here("R", "functions", file)
 
   if (file.exists(file_path)) {
     source(file_path)
-    cat("pass", file, "\n")
+    cat("Sourced:", file, "\n")
   } else {
-    cat("failed", file, "NOT FOUND\n")
+    cat("File not found:", file_path, "\n")
+  }
+}
+
+for (file in script_files) {
+  file_path <- here("R", "scripts", file)
+
+  if (file.exists(file_path)) {
+    source(file_path)
+    cat("Sourced:", file, "\n")
+  } else {
+    cat("File not found:", file_path, "\n")
   }
 }
 
