@@ -92,11 +92,8 @@ for (f in plot_files) {
 
 output_dir <- here("R", "results", "extended_tests")
 figure_dir <- file.path(output_dir, "figures")
-cat("Figure_dir:", figure_dir,"\n")
 table_dir <- file.path(output_dir, "tables")
-cat("Table_dir:", table_dir,"\n")
 model_dir <- file.path(output_dir, "models")
-cat("Model_dir:", model_dir,"\n")
 
 dirs <- c(output_dir, figure_dir, table_dir, model_dir)
 
