@@ -71,36 +71,51 @@ for (pkg in required_packages) {
 
 ## 3. LOAD ALL FUNCTIONS -------------------------------------------------------
 
-function_files <- c(
-  "extract_results.R", "selection_coefficients.R", "detect_family.R", "selection_differential.R", 
-  "univariate_spline.R", "univariate_surface.R", "correlational_tps.R", "correlation_surface.R", 
-  "bootstrap_selection.R"
-)
-
-script_files <- c(
-  "1_prepare_selection_data.R", "2_linear_selection_analysis.R", "3_nonlinear_selection_analysis.R"
-)
-
-for (file in function_files) {
-  file_path <- here("R", "functions", file)
-
-  if (file.exists(file_path)) {
-    source(file_path)
-    cat("Sourced:", file, "\n")
-  } else {
-    cat("File not found:", file_path, "\n")
-  }
+# ------------------------------------------------------
+# 1 Initialize environment
+# ------------------------------------------------------
+if (file.exists(here("R", "scripts", "0.0_initialize.R"))) {
+  source(here("R", "scripts", "0.0_initialize.R"))
 }
 
-for (file in script_files) {
-  file_path <- here("R", "scripts", file)
+# ------------------------------------------------------
+# 3 Load function files and plotting files
+# ------------------------------------------------------
+cat("\nLoading function files and plotting files...\n")
 
-  if (file.exists(file_path)) {
-    source(file_path)
-    cat("Sourced:", file, "\n")
-  } else {
-    cat("File not found:", file_path, "\n")
-  }
+fn_files <- list.files(
+  here("R", "functions"),
+  pattern = "\\.R$",
+  full.names = TRUE
+)
+
+for (f in fn_files) {
+  source(f)
+  cat("Loaded:", basename(f), "\n")
+}
+
+script_files <- list.files(
+  here("R", "scripts"),
+  pattern = "\\.R$",
+  full.names = TRUE
+)
+# Exclude 0.0_initialize.R since it is sourced above
+script_files <- script_files[basename(script_files) != "0.0_initialize.R"]
+
+for (f in script_files) {
+  source(f)
+  cat("Loaded script:", basename(f), "\n")
+}
+
+plot_files <- list.files(
+  here("R", "plotting"),
+  pattern = "\\.R$",
+  full.names = TRUE
+)
+
+for (f in plot_files) {
+  source(f)
+  cat("Loaded plot:", basename(f), "\n")
 }
 
 ## 4. DATA PREPARATION FUNCTION -----------------------------------------------
