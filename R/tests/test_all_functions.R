@@ -7,9 +7,6 @@ cat("\n========================================\n")
 cat("RUNNING FULL FUNCTION TEST SUITE\n")
 cat("========================================\n")
 
-if (dir.exists("../../R/scripts")) {
-    setwd("../..")
-}
 cat("Working directory:", getwd(), "\n")
 
 # ------------------------------------------------------
@@ -19,24 +16,6 @@ cat("Working directory:", getwd(), "\n")
 if (file.exists("R/scripts/0.0_initialize.R")) {
     source("R/scripts/0.0_initialize.R")
 }
-
-# ======================================================
-# 2 Output directories
-# ======================================================
-
-output_dir <- file.path("R", "results", "test_results")
-
-figure_dir <- file.path(output_dir, "figures")
-table_dir <- file.path(output_dir, "tables")
-model_dir <- file.path(output_dir, "models")
-
-dirs <- c(output_dir, figure_dir, table_dir, model_dir)
-
-for (d in dirs) {
-    if (!dir.exists(d)) dir.create(d, recursive = TRUE)
-}
-
-cat("Results saved to:", normalizePath(output_dir), "\n")
 
 # ======================================================
 # Load scripts (pipeline helpers)
@@ -51,10 +30,32 @@ script_files <- list.files(
 )
 
 for (f in script_files) {
-    source(f)
-
-    cat("Loaded script:", basename(f), "\n")
+    if (basename(f) != "0.0_initialize.R") {
+        source(f)
+        cat("Loaded script:", basename(f), "\n")
+    }
 }
+
+# ======================================================
+# 2 Output directories (defined AFTER scripts)
+# ======================================================
+
+library(here)
+
+rm(list = intersect(ls(), c("output_dir", "figure_dir", "table_dir", "model_dir")))
+
+output_dir <- here("R", "results", "test_results")
+figure_dir <- file.path(output_dir, "figures")
+table_dir <- file.path(output_dir, "tables")
+model_dir <- file.path(output_dir, "models")
+
+dirs <- c(output_dir, figure_dir, table_dir, model_dir)
+lapply(dirs, dir.create, recursive = TRUE, showWarnings = FALSE)
+
+cat("\nResults saved to:\n")
+cat("  Figures:", figure_dir, "\n")
+cat("  Tables: ", table_dir, "\n")
+cat("  Models: ", model_dir, "\n")
 
 # ======================================================
 # 3 Load functions
@@ -72,7 +73,6 @@ for (f in fn_files) {
     source(f)
     cat("Loaded:", basename(f), "\n")
 }
-
 
 # ======================================================
 # 4 Load plotting
@@ -195,7 +195,6 @@ for (trait in TRAITS) {
         )
     } else {
         cat("plot_univariate_fitness not found, using univariate_surface\n")
-        # Fallback to old name if exists
         if (exists("univariate_surface")) {
             plot <- univariate_surface(
                 uni = spline,
@@ -296,7 +295,6 @@ if (exists("bootstrap_selection")) {
 # ======================================================
 # 11 adaptive landscape
 # ======================================================
-
 if (exists("adaptive_landscape")) {
     cat("\nTesting adaptive landscape...\n")
 
@@ -318,6 +316,7 @@ if (exists("adaptive_landscape")) {
         file.path(model_dir, "adaptive_landscape.rds")
     )
 
+    # 2D adaptive landscape plot
     if (exists("plot_adaptive_landscape")) {
         p <- plot_adaptive_landscape(
             landscape = landscape,
@@ -332,66 +331,166 @@ if (exists("adaptive_landscape")) {
             height = 6,
             dpi = 300
         )
+        cat("Adaptive 2D landscape Done\n")
     }
 
-    cat("Adaptive landscape Done\n")
+    # 3D adaptive landscape plot
+    if (exists("plot_adaptive_landscape_3d")) {
+        cat("\nGenerating 3D adaptive landscape...\n")
+
+        png(
+            file.path(figure_dir, "adaptive_landscape_3d.png"),
+            width = 8,
+            height = 6,
+            units = "in",
+            res = 300
+        )
+
+        plot_adaptive_landscape_3d(
+            landscape = landscape,
+            trait_cols = c("size", "speed")
+        )
+
+        dev.off()
+
+        angles <- list(
+            c(-30, 30), # default
+            c(0, 30), # front view
+            c(-60, 20) # side view
+        )
+
+        for (i in seq_along(angles)) {
+            png(
+                file.path(figure_dir, paste0("adaptive_landscape_3d_angle", i, ".png")),
+                width = 8,
+                height = 6,
+                units = "in",
+                res = 300
+            )
+
+            plot_adaptive_landscape_3d(
+                landscape = landscape,
+                trait_cols = c("size", "speed"),
+                theta = angles[[i]][1],
+                phi = angles[[i]][2]
+            )
+
+            dev.off()
+        }
+
+        cat("3D adaptive landscape plots saved (", length(angles) + 1, " angles)\n", sep = "")
+
+        if (interactive()) {
+            cat("\nDisplaying interactive 3D plot (if in RStudio)...\n")
+            plot_adaptive_landscape_3d(
+                landscape = landscape,
+                trait_cols = c("size", "speed")
+            )
+        }
+    }
 } else {
     cat("\nSkipping adaptive_landscape (function not found)\n")
 }
 
 # ======================================================
-# 12 compare_fitness_surfaces (NEW)
+# 12 compare_fitness_surfaces - ALL PAIRS
 # ======================================================
 
-if (exists("compare_fitness_surfaces") &&
-    exists("cfs_plots") &&
-    length(cfs_plots) > 0 &&
-    exists("landscape")) {
-    cat("\nTesting surface comparison...\n")
+if (exists("compare_fitness_surfaces") && exists("landscape")) {
+    cat("\nsurface comparisons for all trait pairs...\n")
 
-    tryCatch(
-        {
-            # Use first pair for comparison
-            first_pair <- names(cfs_plots)[1]
-            first_cfs <- switch(first_pair,
-                "size_speed" = correlated_fitness_surface(df_continuous, FITNESS, c("size", "speed")),
-                "size_color" = correlated_fitness_surface(df_continuous, FITNESS, c("size", "color")),
-                "speed_color" = correlated_fitness_surface(df_continuous, FITNESS, c("speed", "color"))
-            )
-
-            comparison <- compare_fitness_surfaces(
-                correlated_surface = first_cfs,
-                adaptive_landscape = landscape,
-                trait_cols = strsplit(first_pair, "_")[[1]]
-            )
-
-            # Save comparison plots
-            if (!is.null(comparison$side_by_side)) {
-                ggsave(
-                    file.path(figure_dir, "comparison_side_by_side.png"),
-                    comparison$side_by_side,
-                    width = 12,
-                    height = 5,
-                    dpi = 300
-                )
-            }
-
-            if (!is.null(comparison$overlay)) {
-                ggsave(
-                    file.path(figure_dir, "comparison_overlay.png"),
-                    comparison$overlay,
-                    width = 8,
-                    height = 6,
-                    dpi = 300
-                )
-            }
-
-            cat("Surface comparison Done\n")
-        },
-        error = function(e) {
-            cat("Surface comparison failed:", e$message, "\n")
-        }
+    all_pairs <- list(
+        c("size", "speed"),
+        c("size", "color"),
+        c("speed", "color")
     )
+
+    comparison_results <- list()
+
+    for (pair in all_pairs) {
+        pair_name <- paste(pair, collapse = "_")
+        cat("\n--- Comparing", pair_name, "---\n")
+
+        tryCatch(
+            {
+                cfs <- correlated_fitness_surface(
+                    data = df_continuous,
+                    fitness_col = FITNESS,
+                    trait_cols = pair,
+                    grid_n = 30
+                )
+
+                formula_str <- paste("fitness ~ s(", pair[1], ",", pair[2], ")")
+                fitness_model <- mgcv::gam(
+                    as.formula(formula_str),
+                    data = df_continuous
+                )
+
+                alt_landscape <- adaptive_landscape(
+                    data = df_continuous,
+                    fitness_model = fitness_model,
+                    trait_cols = pair,
+                    simulation_n = 400,
+                    grid_n = 30
+                )
+
+                comparison <- compare_fitness_surfaces(
+                    correlated_surface = cfs,
+                    adaptive_landscape = alt_landscape,
+                    trait_cols = pair
+                )
+
+                comparison_results[[pair_name]] <- comparison
+
+                if (!is.null(comparison$side_by_side)) {
+                    ggsave(
+                        file.path(figure_dir, paste0("comparison_", pair_name, "_side_by_side.png")),
+                        comparison$side_by_side,
+                        width = 12,
+                        height = 5,
+                        dpi = 300
+                    )
+                }
+
+                if (!is.null(comparison$overlay)) {
+                    ggsave(
+                        file.path(figure_dir, paste0("comparison_", pair_name, "_overlay.png")),
+                        comparison$overlay,
+                        width = 8,
+                        height = 6,
+                        dpi = 300
+                    )
+                }
+
+                if (!is.null(comparison$correlation)) {
+                    cat("  Correlation:", round(comparison$correlation, 4), "\n")
+                    write.csv(
+                        data.frame(
+                            trait1 = pair[1],
+                            trait2 = pair[2],
+                            correlation = comparison$correlation
+                        ),
+                        file.path(table_dir, paste0("correlation_", pair_name, ".csv")),
+                        row.names = FALSE
+                    )
+                }
+            },
+            error = function(e) {
+                cat("Failed for", pair_name, ":", e$message, "\n")
+            }
+        )
+    }
+
+    # Summary of all comparisons
+    if (length(comparison_results) > 0) {
+        cat("\n=== Comparison Summary ===\n")
+        for (name in names(comparison_results)) {
+            cor_val <- comparison_results[[name]]$correlation
+            if (!is.null(cor_val)) {
+                cat(name, ": correlation =", round(cor_val, 4), "\n")
+            }
+        }
+    }
 }
 
 # ======================================================
@@ -415,14 +514,53 @@ validate <- function(obj, type) {
     return(TRUE)
 }
 
-tests <- c(
-    validate(test_binary, "data.frame"),
-    validate(test_continuous, "data.frame"),
-    validate(univariate_plots[[1]], "plot"),
-    validate(cfs_plots[[1]], "plot"),
-    if (exists("boot")) validate(boot, "list") else FALSE,
-    if (exists("landscape")) validate(landscape, "list") else FALSE
-)
+# Check which objects exist before validating
+cat("\nChecking objects for validation:\n")
+cat("test_binary exists:", exists("test_binary"), "\n")
+cat("test_continuous exists:", exists("test_continuous"), "\n")
+cat("univariate_plots exists:", exists("univariate_plots"), "\n")
+cat("cfs_plots exists:", exists("cfs_plots"), "\n")
+cat("boot exists:", exists("boot"), "\n")
+cat("landscape exists:", exists("landscape"), "\n")
+
+# Build tests list safely
+tests <- c()
+
+if (exists("test_binary")) {
+    tests <- c(tests, validate(test_binary, "data.frame"))
+} else {
+    tests <- c(tests, FALSE)
+}
+
+if (exists("test_continuous")) {
+    tests <- c(tests, validate(test_continuous, "data.frame"))
+} else {
+    tests <- c(tests, FALSE)
+}
+
+if (exists("univariate_plots") && length(univariate_plots) > 0) {
+    tests <- c(tests, validate(univariate_plots[[1]], "plot"))
+} else {
+    tests <- c(tests, FALSE)
+}
+
+if (exists("cfs_plots") && length(cfs_plots) > 0) {
+    tests <- c(tests, validate(cfs_plots[[1]], "plot"))
+} else {
+    tests <- c(tests, FALSE)
+}
+
+if (exists("boot")) {
+    tests <- c(tests, validate(boot, "list"))
+} else {
+    tests <- c(tests, FALSE)
+}
+
+if (exists("landscape")) {
+    tests <- c(tests, validate(landscape, "list"))
+} else {
+    tests <- c(tests, FALSE)
+}
 
 cat("\nValidation results:", sum(tests), "/", length(tests), "passed\n")
 

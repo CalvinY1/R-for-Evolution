@@ -1,12 +1,6 @@
 # ======================================================
 # 0.0_initialize.R
 # Project initialization script
-#
-# Purpose:
-#   - Load required packages
-#   - Set working directories
-#   - Create output folders
-#   - Set reproducibility seed
 # ======================================================
 
 cat("\n========================================\n")
@@ -30,7 +24,11 @@ required_packages <- c(
     "Matrix", # matrix operations
     "ggplot2", # plotting
     "dplyr", # data manipulation
-    "tidyr"
+    "tidyr", # data tidying
+    "plot3D", # 3D plotting
+    "here", # robust path handling
+    "ggrepel", # for text labels in plots
+    "viridis"
 )
 
 load_or_install <- function(pkg) {
@@ -41,40 +39,12 @@ load_or_install <- function(pkg) {
 }
 
 invisible(lapply(required_packages, load_or_install))
-
 cat("Packages loaded\n")
 
-# ------------------------------------------------------
-# 3. Define project directories
-# ------------------------------------------------------
-
-project_dir <- getwd()
-
-data_dir <- file.path(project_dir, "data")
-
-results_dir <- file.path(project_dir, "results")
-output_dir <- file.path(results_dir, "models")
-figure_dir <- file.path(results_dir, "figures")
-table_dir <- file.path(results_dir, "tables")
-
-# ------------------------------------------------------
-# 4. Create directories if they do not exist
-# ------------------------------------------------------
-
-dirs <- c(results_dir, output_dir, figure_dir, table_dir)
-
-for (d in dirs) {
-    if (!dir.exists(d)) {
-        dir.create(d, recursive = TRUE)
-    }
-}
 
 # ------------------------------------------------------
 # 5. Print environment info
 # ------------------------------------------------------
-
-cat("\nWorking directory:\n")
-print(project_dir)
 
 cat("\nR version:\n")
 print(R.version.string)

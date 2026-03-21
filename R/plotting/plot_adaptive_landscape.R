@@ -92,33 +92,51 @@ plot_adaptive_landscape <- function(
     return(p)
 }
 
-
 plot_adaptive_landscape_3d <- function(
   landscape,
   trait_cols,
   theta = -30,
-  phi = 30
+  phi = 30,
+  grid_n = 150
 ) {
-    if (!requireNamespace("plot3D", quietly = TRUE)) {
-        stop("Package 'plot3D' required for 3D plotting")
+    if (!requireNamespace("fields", quietly = TRUE)) {
+        stop("Package 'fields' required")
+    }
+    if (!requireNamespace("viridis", quietly = TRUE)) {
+        install.packages("viridis")
     }
 
     df <- landscape$grid
-    x <- unique(df[[trait_cols[1]]])
-    y <- unique(df[[trait_cols[2]]])
-    z <- matrix(df$.mean_fit, nrow = length(x), ncol = length(y))
 
-    plot3D::persp3D(
-        x = x,
-        y = y,
-        z = z,
+    # Use akima package for bicubic spline interpolation (even smoother)
+    if (!requireNamespace("akima", quietly = TRUE)) {
+        install.packages("akima")
+    }
+
+    interp <- akima::interp(
+        x = df[[trait_cols[1]]],
+        y = df[[trait_cols[2]]],
+        z = df$.mean_fit,
+        xo = seq(min(df[[trait_cols[1]]]), max(df[[trait_cols[1]]]), length = grid_n),
+        yo = seq(min(df[[trait_cols[2]]]), max(df[[trait_cols[2]]]), length = grid_n),
+        linear = FALSE,
+        extrap = TRUE
+    )
+
+
+    fields::drape.plot(
+        x = interp$x,
+        y = interp$y,
+        z = interp$z,
+        theta = theta,
+        phi = phi,
         xlab = trait_cols[1],
         ylab = trait_cols[2],
         zlab = "Mean Fitness",
-        main = "Adaptive Landscape",
-        theta = theta,
-        phi = phi,
-        shade = 0.3,
-        ticktype = "detailed"
+        main = "Adaptive Landscape (Ultra Smooth)",
+        col = viridis::plasma(100),
+        border = NA,
+        lighting = TRUE,
+        shade = 0.3
     )
 }
