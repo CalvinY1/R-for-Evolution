@@ -26,16 +26,19 @@ plot_adaptive_landscape <- function(
     ) +
         ggplot2::geom_contour_filled(bins = bins) +
         ggplot2::geom_contour(color = "black", alpha = 0.3) +
+        ggplot2::scale_fill_viridis_d(name = "Mean Fitness") +
         ggplot2::labs(
             x = trait_cols[1],
             y = trait_cols[2],
-            fill = "Mean Fitness",
-            title = "Adaptive Landscape",
-            subtitle = "Mean fitness as function of population mean phenotype"
+            title = "Adaptive Landscape"
         ) +
-        ggplot2::theme_minimal(base_size = 12)
+        ggplot2::theme_minimal(base_size = 12) +
+        ggplot2::theme(
+            aspect.ratio = 0.8,
+            plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
+            plot.subtitle = ggplot2::element_text(hjust = 0.5)
+        )
 
-    # Add actual population means
     if (show_actual_means && !is.null(landscape$actual_population_means)) {
         p <- p +
             ggplot2::geom_point(
@@ -46,26 +49,41 @@ plot_adaptive_landscape <- function(
                 ),
                 color = "red",
                 size = 4,
-                shape = 19
+                shape = 19,
+                alpha = 0.8
             )
 
-        # Add labels if group_col provided
         if (!is.null(group_col) && group_col %in% names(landscape$actual_population_means)) {
-            p <- p +
-                ggrepel::geom_text_repel(
-                    data = landscape$actual_population_means,
-                    ggplot2::aes(
-                        x = .data[[trait_cols[1]]],
-                        y = .data[[trait_cols[2]]],
-                        label = .data[[group_col]]
-                    ),
-                    size = 3,
-                    box.padding = 0.5
-                )
+            if (requireNamespace("ggrepel", quietly = TRUE)) {
+                p <- p +
+                    ggrepel::geom_text_repel(
+                        data = landscape$actual_population_means,
+                        ggplot2::aes(
+                            x = .data[[trait_cols[1]]],
+                            y = .data[[trait_cols[2]]],
+                            label = .data[[group_col]]
+                        ),
+                        size = 3,
+                        box.padding = 0.5,
+                        point.padding = 0.3
+                    )
+            } else {
+                p <- p +
+                    ggplot2::geom_text(
+                        data = landscape$actual_population_means,
+                        ggplot2::aes(
+                            x = .data[[trait_cols[1]]],
+                            y = .data[[trait_cols[2]]],
+                            label = .data[[group_col]]
+                        ),
+                        size = 3,
+                        vjust = -1,
+                        hjust = 0.5
+                    )
+            }
         }
     }
 
-    # Add optimum point
     if (show_optimum && !is.null(landscape$optimum)) {
         p <- p +
             ggplot2::geom_point(
@@ -92,37 +110,37 @@ plot_adaptive_landscape <- function(
     return(p)
 }
 
+
 plot_adaptive_landscape_3d <- function(
   landscape,
   trait_cols,
   theta = -30,
   phi = 30,
-  grid_n = 150
+  grid_n = 200
 ) {
-    if (!requireNamespace("fields", quietly = TRUE)) {
-        stop("Package 'fields' required")
-    }
-    if (!requireNamespace("viridis", quietly = TRUE)) {
-        install.packages("viridis")
-    }
-
     df <- landscape$grid
 
-    # Use akima package for bicubic spline interpolation (even smoother)
-    if (!requireNamespace("akima", quietly = TRUE)) {
-        install.packages("akima")
-    }
+    # Extract data
+    x <- df[[trait_cols[1]]]
+    y <- df[[trait_cols[2]]]
+    z <- df$.mean_fit
 
+    # Add small jitter to avoid collinear warnings
+    set.seed(42)
+    x <- x + rnorm(length(x), 0, 1e-8)
+    y <- y + rnorm(length(y), 0, 1e-8)
+
+    # Interpolate for smooth surface
     interp <- akima::interp(
-        x = df[[trait_cols[1]]],
-        y = df[[trait_cols[2]]],
-        z = df$.mean_fit,
-        xo = seq(min(df[[trait_cols[1]]]), max(df[[trait_cols[1]]]), length = grid_n),
-        yo = seq(min(df[[trait_cols[2]]]), max(df[[trait_cols[2]]]), length = grid_n),
-        linear = FALSE,
-        extrap = TRUE
+        x = x,
+        y = y,
+        z = z,
+        xo = seq(min(x), max(x), length = grid_n),
+        yo = seq(min(y), max(y), length = grid_n),
+        linear = FALSE, # Spline interpolation
+        extrap = TRUE,
+        duplicate = "mean"
     )
-
 
     fields::drape.plot(
         x = interp$x,
@@ -133,10 +151,9 @@ plot_adaptive_landscape_3d <- function(
         xlab = trait_cols[1],
         ylab = trait_cols[2],
         zlab = "Mean Fitness",
-        main = "Adaptive Landscape (Ultra Smooth)",
+        main = "Adaptive Landscape (3D View)",
         col = viridis::plasma(100),
         border = NA,
-        lighting = TRUE,
-        shade = 0.3
+        shade = 0.5
     )
 }

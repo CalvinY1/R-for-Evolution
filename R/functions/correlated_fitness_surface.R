@@ -12,7 +12,6 @@
 # ---------- helpers ----------
 `%||%` <- function(a, b) if (!is.null(a)) a else b
 
-
 correlated_fitness_surface <- function(
   data,
   fitness_col,
@@ -97,12 +96,10 @@ correlated_fitness_surface <- function(
     grid_scaled[[trait_cols[2]]] <- (grid[[trait_cols[2]]] - scaler$m2) / scaler$s2
   }
 
-
   if (method == "gam") {
     if (!requireNamespace("mgcv", quietly = TRUE)) {
       stop("mgcv package required. Please install.packages('mgcv')")
     }
-
 
     if (any(!is.numeric(y)) || any(!is.numeric(x1s)) || any(!is.numeric(x2s))) {
       stop("Non-numeric values in GAM fitting data")
@@ -110,23 +107,44 @@ correlated_fitness_surface <- function(
 
     fam <- if (is_binary) stats::binomial("logit") else stats::gaussian()
 
-
+    # ============================================
+    # KEY FIX: Keep original variable names
+    # ============================================
+    # Create data frame with original trait names
     df_fit <- data.frame(
       .y = as.numeric(y),
-      .x1 = as.numeric(x1s),
-      .x2 = as.numeric(x2s)
+      trait1 = as.numeric(x1s),
+      trait2 = as.numeric(x2s)
     )
 
+    # Rename to original trait names
+    names(df_fit)[2:3] <- trait_cols
 
     df_fit <- df_fit[complete.cases(df_fit), ]
 
     cat("GAM fitting with", nrow(df_fit), "observations\n")
 
-    # try different GAM formulas
+    # Build formula with original trait names
+    fml <- as.formula(paste(
+      ".y ~ s(", trait_cols[1], ", ", trait_cols[2],
+      ", bs = 'tp', k = min(k, nrow(df_fit) - 1))"
+    ))
+
+    # Alternative formula 1: additive smooths
+    fml_alt1 <- as.formula(paste(
+      ".y ~ s(", trait_cols[1],
+      ", k = min(floor(k/2), nrow(df_fit) - 1)) + s(",
+      trait_cols[2],
+      ", k = min(floor(k/2), nrow(df_fit) - 1))"
+    ))
+
+    # Alternative formula 2: linear
+    fml_alt2 <- as.formula(paste(".y ~ ", trait_cols[1], " + ", trait_cols[2]))
+
     try_formulas <- list(
-      main = .y ~ s(.x1, .x2, bs = "tp", k = min(k, nrow(df_fit) - 1)),
-      alt1 = .y ~ s(.x1, k = min(floor(k / 2), nrow(df_fit) - 1)) + s(.x2, k = min(floor(k / 2), nrow(df_fit) - 1)),
-      alt2 = .y ~ .x1 + .x2
+      main = fml,
+      alt1 = fml_alt1,
+      alt2 = fml_alt2
     )
 
     fit <- NULL
@@ -147,7 +165,7 @@ correlated_fitness_surface <- function(
             break
           },
           error = function(e) {
-            cat("ailed with formula", form_name, ":", e$message, "\n")
+            cat("Failed with formula", form_name, ":", e$message, "\n")
           }
         )
       }
@@ -157,11 +175,9 @@ correlated_fitness_surface <- function(
       stop("All GAM formula attempts failed")
     }
 
-    # predict on grid
-    newdat <- data.frame(
-      .x1 = as.numeric(grid_scaled[[trait_cols[1]]]),
-      .x2 = as.numeric(grid_scaled[[trait_cols[2]]])
-    )
+    # predict on grid - use original trait names
+    newdat <- grid_scaled[, trait_cols, drop = FALSE]
+    names(newdat) <- trait_cols
 
     .fit <- tryCatch(
       {
@@ -188,7 +204,9 @@ correlated_fitness_surface <- function(
       formula_used = formula_used,
       data_type = ifelse(is_binary, "binary", "continuous"),
       trait_cols = trait_cols,
-      fitness_col = fitness_col
+      fitness_col = fitness_col,
+      surface_type = "correlated_fitness",
+      note = "Correlated fitness surface (individual fitness)"
     ))
   }
 
@@ -223,7 +241,6 @@ correlated_fitness_surface <- function(
     warning("NA predictions, using mean imputation")
     grid$.fit[is.na(grid$.fit)] <- mean(grid$.fit, na.rm = TRUE)
   }
-
 
   return(list(
     model = tps_model,

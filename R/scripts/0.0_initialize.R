@@ -25,7 +25,6 @@ required_packages <- c(
     "ggplot2", # plotting
     "dplyr", # data manipulation
     "tidyr", # data tidying
-    "plot3D", # 3D plotting
     "here", # robust path handling
     "ggrepel", # for text labels in plots
     "viridis"
@@ -41,10 +40,8 @@ load_or_install <- function(pkg) {
 invisible(lapply(required_packages, load_or_install))
 cat("Packages loaded\n")
 
-
 # ------------------------------------------------------
 # 5. Print environment info
 # ------------------------------------------------------
-
 cat("\nR version:\n")
 print(R.version.string)
