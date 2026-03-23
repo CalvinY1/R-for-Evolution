@@ -412,10 +412,10 @@ if (exists("adaptive_landscape")) {
 
     bumpus_std_points <- bumpus
     bumpus_std_points$TL <- scale(bumpus_std_points$TL)
-    bumpus_std_points$HL <- scale(bumpus_std_points$HL)
+    bumpus_std_points$KL <- scale(bumpus_std_points$KL)
 
     fitness_model <- mgcv::gam(
-        Survived ~ s(TL, HL),
+        Survived ~ s(TL, KL),
         family = binomial,
         data = bumpus_std
     )
@@ -423,7 +423,7 @@ if (exists("adaptive_landscape")) {
     landscape <- adaptive_landscape(
         data = bumpus_std,
         fitness_model = fitness_model,
-        trait_cols = c("TL", "HL"),
+        trait_cols = c("TL", "KL"),
         simulation_n = 500,
         grid_n = 50
     )
@@ -439,7 +439,7 @@ if (exists("adaptive_landscape")) {
 
         p2d <- plot_adaptive_landscape(
             landscape = landscape,
-            trait_cols = c("TL", "HL"),
+            trait_cols = c("TL", "KL"),
             original_data = bumpus_std_points,
             bins = 12
         )
@@ -465,7 +465,7 @@ if (exists("adaptive_landscape")) {
 
         plot_adaptive_landscape_3d(
             landscape = landscape,
-            trait_cols = c("TL", "HL"),
+            trait_cols = c("TL", "KL"),
             theta = -30,
             phi = 30,
             grid_n = 200
@@ -492,7 +492,7 @@ if (exists("adaptive_landscape")) {
 
             plot_adaptive_landscape_3d(
                 landscape = landscape,
-                trait_cols = c("TL", "HL"),
+                trait_cols = c("TL", "KL"),
                 theta = angles[[i]][1],
                 phi = angles[[i]][2],
                 grid_n = 200
@@ -505,14 +505,14 @@ if (exists("adaptive_landscape")) {
     cat("\n=== Adaptive Landscape Summary ===\n")
     cat("Optimal population mean:\n")
     cat("  TL (Beak Length):", round(landscape$optimum$TL, 3), "\n")
-    cat("  HL (Beak Depth):", round(landscape$optimum$HL, 3), "\n")
+    cat("  KL (Beak Depth):", round(landscape$optimum$KL, 3), "\n")
     cat("  Mean fitness at optimum:", round(landscape$optimum$.mean_fit, 3), "\n")
 
     summary_df <- data.frame(
-        Metric = c("Optimal TL", "Optimal HL", "Optimal Fitness"),
+        Metric = c("Optimal TL", "Optimal KL", "Optimal Fitness"),
         Value = c(
             round(landscape$optimum$TL, 3),
-            round(landscape$optimum$HL, 3),
+            round(landscape$optimum$KL, 3),
             round(landscape$optimum$.mean_fit, 3)
         )
     )
