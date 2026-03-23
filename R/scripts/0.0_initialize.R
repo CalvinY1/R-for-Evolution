@@ -27,7 +27,8 @@ required_packages <- c(
     "tidyr", # data tidying
     "here", # robust path handling
     "ggrepel", # for text labels in plots
-    "viridis"
+    "viridis",
+    "patchwork"
 )
 
 load_or_install <- function(pkg) {
