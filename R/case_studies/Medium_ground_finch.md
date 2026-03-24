@@ -52,7 +52,25 @@ Significant disruptive selection on beak size was detected **only in 2009** (γ 
 
 ---
 
-#### 3.3 Univariate Fitness on Beak Size
+#### 3.3 Selection Coefficients
+
+| Year | Trait | Linear (β) | P (Linear) | Quadratic (γ) | P (Quadratic) | Correlational (γ_ij) | P (Correlational) |
+|------|-------|-----------|------------|---------------|---------------|---------------------|-------------------|
+| 2009 | Beak_PC1 | 1.143 | 0.002 | -1.281 | 0.320 | 1.945 | 0.117 |
+| 2009 | PC.body1 | -0.780 | 0.036 | -2.009 | 0.127 | - | - |
+| 2006 | Beak_PC1 × PC.body1 | - | - | - | - | 1.146 | 0.099 |
+| All others | All terms | - | > 0.05 | - | > 0.05 | - | > 0.05 |
+
+**2009**: Significant directional selection on both traits - larger beaks and smaller body size favored
+**No nonlinear selection** detected in any year (all quadratic P > 0.05)
+**No correlational selection** detected in any year (all P > 0.05, with 2006 showing marginal non-significant trend)
+
+*Complete coefficient tables for all years are provided in results folder.*
+
+---
+
+
+#### 3.4 Univariate Fitness on Beak Size
 
 <table>
 <tr>
@@ -78,24 +96,7 @@ The fitness function for 2009 shows a clear increase in fitness with increasing 
 
 ---
 
-#### 3.4 Selection Coefficients
-
-| Year | Trait | Linear (β) | P (Linear) | Quadratic (γ) | P (Quadratic) | Correlational (γ_ij) | P (Correlational) |
-|------|-------|-----------|------------|---------------|---------------|---------------------|-------------------|
-| 2009 | Beak_PC1 | 1.143 | 0.002 | -1.281 | 0.320 | 1.945 | 0.117 |
-| 2009 | PC.body1 | -0.780 | 0.036 | -2.009 | 0.127 | - | - |
-| 2006 | Beak_PC1 × PC.body1 | - | - | - | - | 1.146 | 0.099 |
-| All others | All terms | - | > 0.05 | - | > 0.05 | - | > 0.05 |
-
-**2009**: Significant directional selection on both traits - larger beaks and smaller body size favored
-**No nonlinear selection** detected in any year (all quadratic P > 0.05)
-**No correlational selection** detected in any year (all P > 0.05, with 2006 showing marginal non-significant trend)
-
-*Complete coefficient tables for all years are provided in results folder.*
-
----
-
-#### 3.4 Correlations Fitness 
+#### 3.5 Correlations Fitness 
 
 <table>
 <tr>

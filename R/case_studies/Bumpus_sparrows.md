@@ -48,25 +48,9 @@ Selection differentials indicate that survival favors smaller body size (TL, WT)
 Unlike the logistic regression results presented in the lecture, which use raw trait values for interpretability, 
 selection differentials in this study are calculated using standardized traits. This allows for direct comparison of selection strength across traits.
 
---- 
-
-#### 3.2 Univariate Fitness 
-
-<table>
-<tr>
-<td><b>(A) TL</b><br><img src="../results/bumpus_sparrows_results/figures/univariate_TL.png" width="100%"></td>
-<td><b>(B) HL</b><br><img src="../results/bumpus_sparrows_results/figures/univariate_HL.png" width="100%"></td>
-</tr>
-
-<tr>
-<td><b>(C) WT</b><br><img src="../results/bumpus_sparrows_results/figures/univariate_WT.png" width="100%"></td>
-<td><b>(D) KL</b><br><img src="../results/bumpus_sparrows_results/figures/univariate_KL.png" width="100%"></td>
-</tr>
-</table>
-
 ---
 
-#### 3.3 Selection Coefficients 
+#### 3.2 Selection Coefficients 
 
 | Term | Type | Beta_Coefficient | Standard_Error | Variance | P_Value |
 |------|------|------------------|----------------|----------|--------|
@@ -93,7 +77,38 @@ selection differentials in this study are calculated using standardized traits. 
 
 ---
 
-#### 3.4 Correlations Fitness 
+#### 3.3 Disruptive (Nonlinear) Selection 
+
+| Trait | Linear (β) | Quadratic (γ) | p (Linear) | p (Quadratic) | Interpretation |
+|------|-----------|---------------|------------|---------------|----------------|
+| TL   | -0.609 | -0.829 | 0.002 | 0.020 | Stabilizing selection |
+| HL   | 0.297  | -0.374 | 0.116 | 0.203 | No nonlinear selection |
+| WT   | -0.416 | -0.318 | 0.036 | 0.322 | No nonlinear selection |
+| KL   | 0.277  | -0.117 | 0.118 | 0.685 | No nonlinear selection |
+
+Univariate analysis of quadratic selection gradients revealed significant stabilizing selection for total length (TL: γ = -0.83, P = 0.02), indicating that intermediate-sized individuals had the highest survival probability. This finding aligns with classic studies of Bumpus sparrows, which documented higher mortality among extreme-sized individuals.
+
+No other traits showed significant quadratic selection (all P > 0.20), suggesting that nonlinear selection is generally weak or absent for the remaining morphological traits in this dataset. Directional selection patterns (linear coefficients) were consistent across traits: body size traits (TL, WT) showed negative directional selection, while structural traits (HL, KL) showed positive directional selection.
+
+---
+
+#### 3.4 Univariate Fitness 
+
+<table>
+<tr>
+<td><b>(A) TL</b><br><img src="../results/bumpus_sparrows_results/figures/univariate_TL.png" width="100%"></td>
+<td><b>(B) HL</b><br><img src="../results/bumpus_sparrows_results/figures/univariate_HL.png" width="100%"></td>
+</tr>
+
+<tr>
+<td><b>(C) WT</b><br><img src="../results/bumpus_sparrows_results/figures/univariate_WT.png" width="100%"></td>
+<td><b>(D) KL</b><br><img src="../results/bumpus_sparrows_results/figures/univariate_KL.png" width="100%"></td>
+</tr>
+</table>
+
+---
+
+#### 3.5 Correlations Fitness 
 
 <table>
 <tr>
@@ -127,20 +142,6 @@ Fitness increases with KL and decreases with WT, showing a clear directional gra
 
 ---
 
-#### 3.5 Disruptive (Nonlinear) Selection 
-
-| Trait | Linear (β) | Quadratic (γ) | p (Linear) | p (Quadratic) | Interpretation |
-|------|-----------|---------------|------------|---------------|----------------|
-| TL   | -0.609 | -0.829 | 0.002 | 0.020 | Stabilizing selection |
-| HL   | 0.297  | -0.374 | 0.116 | 0.203 | No nonlinear selection |
-| WT   | -0.416 | -0.318 | 0.036 | 0.322 | No nonlinear selection |
-| KL   | 0.277  | -0.117 | 0.118 | 0.685 | No nonlinear selection |
-
-Univariate analysis of quadratic selection gradients revealed significant stabilizing selection for total length (TL: γ = -0.83, P = 0.02), indicating that intermediate-sized individuals had the highest survival probability. This finding aligns with classic studies of Bumpus sparrows, which documented higher mortality among extreme-sized individuals.
-
-No other traits showed significant quadratic selection (all P > 0.20), suggesting that nonlinear selection is generally weak or absent for the remaining morphological traits in this dataset. Directional selection patterns (linear coefficients) were consistent across traits: body size traits (TL, WT) showed negative directional selection, while structural traits (HL, KL) showed positive directional selection.
-
----
 
 #### 3.6 Adaptive Landscape 
 

@@ -47,37 +47,7 @@ In this study, we analyze selection on six functional traits using a large F2 hy
 ---
 
 
-#### 3.2 Univariate Fitness 
-
-<table>
-<tr>
-<td><b>(A) Binary_body</b><br><img src="../results/pupfish_results/figures/univariate_binary_body.png" width="100%"></td>
-<td><b>(B) Binary_eye</b><br><img src="../results/pupfish_results/figures/univariate_binary_eye.png" width="100%"></td>
-<td><b>(C) Binary_jaw</b><br><img src="../results/pupfish_results/figures/univariate_binary_jaw.png" width="100%"></td>
-</tr>
-
-<tr>
-<td><b>(D) Binary_mouth</b><br><img src="../results/pupfish_results/figures/univariate_binary_mouth.png" width="100%"></td>
-<td><b>(E) Binary_nasal</b><br><img src="../results/pupfish_results/figures/univariate_binary_nasal.png" width="100%"></td>
-<td><b>(F) Binary_SL</b><br><img src="../results/pupfish_results/figures/univariate_binary_SL.png" width="100%"></td>
-</tr>
-
-<tr>
-<td><b>(G) Contiuous_body</b><br><img src="../results/pupfish_results/figures/univariate_continuous_body.png" width="100%"></td>
-<td><b>(H) Contiuous_eye</b><br><img src="../results/pupfish_results/figures/univariate_continuous_eye.png" width="100%"></td>
-<td><b>(I) Contiuous_jaw</b><br><img src="../results/pupfish_results/figures/univariate_continuous_jaw.png" width="100%"></td>
-</tr>
-
-<tr>
-<td><b>(G) Contiuous_mouth</b><br><img src="../results/pupfish_results/figures/univariate_continuous_mouth.png" width="100%"></td>
-<td><b>(H) Contiuous_nasal</b><br><img src="../results/pupfish_results/figures/univariate_continuous_nasal.png" width="100%"></td>
-<td><b>(I) Contiuous_SL</b><br><img src="../results/pupfish_results/figures/univariate_continuous_SL.png" width="100%"></td>
-</tr>
-</table>
-
----
-
-#### 3.3 Selection Coefficients (Binary)
+#### 3.2 Selection Coefficients (Binary)
 
 | Term        | Type           | Beta_Coefficient | Standard_Error | P_Value | Variance |
 |-------------|----------------|------------------|----------------|---------|----------|
@@ -162,7 +132,37 @@ Importantly, our results show that growth reveals stronger selection patterns th
 
 ---
 
-#### 3.5 Correlations Fitness 
+#### 3.5 Univariate Fitness 
+
+<table>
+<tr>
+<td><b>(A) Binary_body</b><br><img src="../results/pupfish_results/figures/univariate_binary_body.png" width="100%"></td>
+<td><b>(B) Binary_eye</b><br><img src="../results/pupfish_results/figures/univariate_binary_eye.png" width="100%"></td>
+<td><b>(C) Binary_jaw</b><br><img src="../results/pupfish_results/figures/univariate_binary_jaw.png" width="100%"></td>
+</tr>
+
+<tr>
+<td><b>(D) Binary_mouth</b><br><img src="../results/pupfish_results/figures/univariate_binary_mouth.png" width="100%"></td>
+<td><b>(E) Binary_nasal</b><br><img src="../results/pupfish_results/figures/univariate_binary_nasal.png" width="100%"></td>
+<td><b>(F) Binary_SL</b><br><img src="../results/pupfish_results/figures/univariate_binary_SL.png" width="100%"></td>
+</tr>
+
+<tr>
+<td><b>(G) Contiuous_body</b><br><img src="../results/pupfish_results/figures/univariate_continuous_body.png" width="100%"></td>
+<td><b>(H) Contiuous_eye</b><br><img src="../results/pupfish_results/figures/univariate_continuous_eye.png" width="100%"></td>
+<td><b>(I) Contiuous_jaw</b><br><img src="../results/pupfish_results/figures/univariate_continuous_jaw.png" width="100%"></td>
+</tr>
+
+<tr>
+<td><b>(G) Contiuous_mouth</b><br><img src="../results/pupfish_results/figures/univariate_continuous_mouth.png" width="100%"></td>
+<td><b>(H) Contiuous_nasal</b><br><img src="../results/pupfish_results/figures/univariate_continuous_nasal.png" width="100%"></td>
+<td><b>(I) Contiuous_SL</b><br><img src="../results/pupfish_results/figures/univariate_continuous_SL.png" width="100%"></td>
+</tr>
+</table>
+
+---
+
+#### 3.6 Correlations Fitness 
 
 <table>
 
