@@ -4,12 +4,12 @@
 # This function calculates the Correlated Fitness Surface.
 # Definition: Individual fitness ~ Individual phenotype
 # Formula: w ~ z₁ + z₂ + z₁² + z₂² + z₁×z₂
-# Significance: Describes how current natural selection acts on trait combinations.
-# Adaptive landscape needs to be calculated separately (see adaptive_landscape.R)
+#
+# IMPORTANT NOTES: Traits MUST be standardized BEFORE calling this function
+# Use prepare_selection_data() with standardize = TRUE and optional group
+# DO NOT use scale_traits = TRUE (double standardization)
 # ======================================================
 
-
-# ---------- helpers ----------
 `%||%` <- function(a, b) if (!is.null(a)) a else b
 
 correlated_fitness_surface <- function(
@@ -18,17 +18,48 @@ correlated_fitness_surface <- function(
   trait_cols,
   grid_n = 60,
   method = "auto",
-  scale_traits = TRUE,
+  scale_traits = FALSE,
+  group = NULL,
   k = 30
 ) {
   stopifnot(length(trait_cols) == 2L)
   need <- c(fitness_col, trait_cols)
 
+  # Input validation
   if (!all(need %in% names(data))) {
     stop("Missing columns: ", paste(setdiff(need, names(data)), collapse = ", "))
   }
 
-  # extract variables and coerce to numeric
+  if (!is.null(group) && !group %in% names(data)) {
+    stop("Group column '", group, "' not found in data")
+  }
+
+  # DOUBLE STANDARDIZATION WARNING
+  if (scale_traits) {
+    warning(
+      "scale_traits = TRUE is deprecated. ",
+      "Traits should be standardized using prepare_selection_data() ",
+      "before calling this function. Setting scale_traits = FALSE."
+    )
+    scale_traits <- FALSE
+  }
+
+  message("IMPORTANT: Traits should already be standardized (mean = 0, SD = 1).")
+  message("           Do NOT apply scale() again within this function.")
+
+  # Check if traits appear standardized
+  for (t in trait_cols) {
+    z_mean <- mean(data[[t]], na.rm = TRUE)
+    z_sd <- sd(data[[t]], na.rm = TRUE)
+    if (abs(z_mean) > 0.1 || abs(z_sd - 1) > 0.1) {
+      warning(
+        "Trait '", t, "' does not appear standardized ",
+        "(mean = ", round(z_mean, 3), ", SD = ", round(z_sd, 3), "). ",
+        "Consider using prepare_selection_data() first."
+      )
+    }
+  }
+
   y <- as.numeric(data[[fitness_col]])
   x1 <- as.numeric(data[[trait_cols[1]]])
   x2 <- as.numeric(data[[trait_cols[2]]])
@@ -37,15 +68,21 @@ correlated_fitness_surface <- function(
     stop("Non-numeric values detected in fitness or trait columns")
   }
 
-  # remove incomplete cases
+  # Remove incomplete cases
   keep <- stats::complete.cases(y, x1, x2)
   y <- y[keep]
   x1 <- x1[keep]
   x2 <- x2[keep]
 
+  if (!is.null(group)) {
+    grp <- data[[group]][keep]
+  } else {
+    grp <- NULL
+  }
+
   if (length(y) < 10) stop("Too few complete cases: ", length(y), " (<10)")
 
-  # detect binary fitness
+  # Detect binary fitness
   uniq_y <- unique(y)
   is_binary <- length(uniq_y) == 2 && all(sort(uniq_y) == c(0, 1))
 
@@ -55,7 +92,7 @@ correlated_fitness_surface <- function(
 
   if (!method %in% c("gam", "tps")) stop("method must be 'auto' | 'gam' | 'tps'")
 
-  # check trait variation
+  # Check trait variation
   if (length(unique(x1)) < 3 || length(unique(x2)) < 3) {
     stop(
       "Too few unique trait values: ",
@@ -67,79 +104,76 @@ correlated_fitness_surface <- function(
   cat("Data type:", ifelse(is_binary, "binary", "continuous"), "\n")
   cat("Selected method:", method, "\n")
   cat("Data points:", length(y), "\n")
+  if (!is.null(group)) {
+    cat("Grouping variable:", group, "\n")
+    cat("Number of groups:", length(unique(grp)), "\n")
+  }
 
-  # optional trait standarization
-  scaler <- list(m1 = mean(x1), s1 = stats::sd(x1), m2 = mean(x2), s2 = stats::sd(x2))
+  x1s <- x1
+  x2s <- x2
 
-  if (!is.finite(scaler$s1) || scaler$s1 == 0) scaler$s1 <- 1
-  if (!is.finite(scaler$s2) || scaler$s2 == 0) scaler$s2 <- 1
-
-  x1s <- if (scale_traits) (x1 - scaler$m1) / scaler$s1 else x1
-  x2s <- if (scale_traits) (x2 - scaler$m2) / scaler$s2 else x2
-
-  # construct prediction grid in original trait space
+  # For prediction grid (in original units, not standardized)
+  # But since traits are standardized, original = standardized
   g1 <- seq(min(x1, na.rm = TRUE), max(x1, na.rm = TRUE), length.out = grid_n)
   g2 <- seq(min(x2, na.rm = TRUE), max(x2, na.rm = TRUE), length.out = grid_n)
 
-  grid <- expand.grid(
-    g1, g2,
-    KEEP.OUT.ATTRS = FALSE
-  )
-
+  grid <- expand.grid(g1, g2, KEEP.OUT.ATTRS = FALSE)
   names(grid) <- trait_cols
 
-  # scale grid values for prediction if traits were standardized
+  # Grid is already in standardized units
   grid_scaled <- grid
-
-  if (scale_traits) {
-    grid_scaled[[trait_cols[1]]] <- (grid[[trait_cols[1]]] - scaler$m1) / scaler$s1
-    grid_scaled[[trait_cols[2]]] <- (grid[[trait_cols[2]]] - scaler$m2) / scaler$s2
-  }
 
   if (method == "gam") {
     if (!requireNamespace("mgcv", quietly = TRUE)) {
       stop("mgcv package required. Please install.packages('mgcv')")
     }
 
-    if (any(!is.numeric(y)) || any(!is.numeric(x1s)) || any(!is.numeric(x2s))) {
-      stop("Non-numeric values in GAM fitting data")
-    }
-
     fam <- if (is_binary) stats::binomial("logit") else stats::gaussian()
 
-    # ============================================
-    # KEY FIX: Keep original variable names
-    # ============================================
-    # Create data frame with original trait names
+    # Prepare data frame
     df_fit <- data.frame(
       .y = as.numeric(y),
       trait1 = as.numeric(x1s),
       trait2 = as.numeric(x2s)
     )
-
-    # Rename to original trait names
     names(df_fit)[2:3] <- trait_cols
+
+    if (!is.null(group)) {
+      df_fit[[group]] <- grp
+    }
 
     df_fit <- df_fit[complete.cases(df_fit), ]
 
     cat("GAM fitting with", nrow(df_fit), "observations\n")
 
-    # Build formula with original trait names
-    fml <- as.formula(paste(
-      ".y ~ s(", trait_cols[1], ", ", trait_cols[2],
-      ", bs = 'tp', k = min(k, nrow(df_fit) - 1))"
-    ))
+    # Build formulas
+    k_adj <- min(k, nrow(df_fit) - 1)
 
-    # Alternative formula 1: additive smooths
-    fml_alt1 <- as.formula(paste(
-      ".y ~ s(", trait_cols[1],
-      ", k = min(floor(k/2), nrow(df_fit) - 1)) + s(",
-      trait_cols[2],
-      ", k = min(floor(k/2), nrow(df_fit) - 1))"
-    ))
-
-    # Alternative formula 2: linear
-    fml_alt2 <- as.formula(paste(".y ~ ", trait_cols[1], " + ", trait_cols[2]))
+    if (!is.null(group)) {
+      fml <- as.formula(paste(
+        ".y ~ ", group, " + s(", trait_cols[1], ", ", trait_cols[2],
+        ", bs = 'tp', k = ", k_adj, ")"
+      ))
+      fml_alt1 <- as.formula(paste(
+        ".y ~ ", group, " + s(", trait_cols[1],
+        ", k = min(floor(", k_adj, "/2), nrow(df_fit) - 1)) + s(",
+        trait_cols[2],
+        ", k = min(floor(", k_adj, "/2), nrow(df_fit) - 1))"
+      ))
+      fml_alt2 <- as.formula(paste(".y ~ ", group, " + ", trait_cols[1], " + ", trait_cols[2]))
+    } else {
+      fml <- as.formula(paste(
+        ".y ~ s(", trait_cols[1], ", ", trait_cols[2],
+        ", bs = 'tp', k = ", k_adj, ")"
+      ))
+      fml_alt1 <- as.formula(paste(
+        ".y ~ s(", trait_cols[1],
+        ", k = min(floor(", k_adj, "/2), nrow(df_fit) - 1)) + s(",
+        trait_cols[2],
+        ", k = min(floor(", k_adj, "/2), nrow(df_fit) - 1))"
+      ))
+      fml_alt2 <- as.formula(paste(".y ~ ", trait_cols[1], " + ", trait_cols[2]))
+    }
 
     try_formulas <- list(
       main = fml,
@@ -175,9 +209,20 @@ correlated_fitness_surface <- function(
       stop("All GAM formula attempts failed")
     }
 
-    # predict on grid - use original trait names
+    # Predict on grid
     newdat <- grid_scaled[, trait_cols, drop = FALSE]
     names(newdat) <- trait_cols
+
+    if (!is.null(group)) {
+      group_levels <- unique(grp)
+      if (is.factor(df_fit[[group]])) {
+        ref_group <- names(sort(table(df_fit[[group]]), decreasing = TRUE))[1]
+      } else {
+        ref_group <- group_levels[which.min(abs(group_levels - median(group_levels)))]
+      }
+      newdat[[group]] <- ref_group
+      cat("Predictions use group = '", ref_group, "' as reference\n")
+    }
 
     .fit <- tryCatch(
       {
@@ -197,6 +242,7 @@ correlated_fitness_surface <- function(
     }
 
     cat("Success Predictions range:", round(range(grid$.fit), 4), "\n")
+
     return(list(
       model = fit,
       grid = grid,
@@ -205,12 +251,12 @@ correlated_fitness_surface <- function(
       data_type = ifelse(is_binary, "binary", "continuous"),
       trait_cols = trait_cols,
       fitness_col = fitness_col,
+      group_used = group,
       surface_type = "correlated_fitness",
       note = "Correlated fitness surface (individual fitness)"
     ))
   }
 
-  # method == "tps"
   if (!requireNamespace("fields", quietly = TRUE)) {
     stop("For continuous fitness with tps method, install fields: install.packages('fields')")
   }
@@ -249,6 +295,7 @@ correlated_fitness_surface <- function(
     data_type = ifelse(is_binary, "binary", "continuous"),
     trait_cols = trait_cols,
     fitness_col = fitness_col,
+    group_used = group,
     surface_type = "correlated_fitness",
     note = "Correlated fitness surface (individual fitness)"
   ))

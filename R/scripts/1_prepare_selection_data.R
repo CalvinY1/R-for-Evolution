@@ -1,46 +1,53 @@
-# prepare_selection_data()
+# ============================================================================
+# prepare_selection_data
 #
-# purpose:
-# 1. check fitness and traits columns
-# 2. handle missing values
-# 3. standardize trait variables
-# 4. compute relative fitness
+# Purpose:
+#   1. Check fitness and traits columns
+#   2. Handle missing values (including group column)
+#   3. Standardize trait variables (optionally within groups)
+#   4. Compute relative fitness (optionally within groups)
 #
-# example of using this function:
-# df <- data.frame(
-# offspring = c(2,4,0,3),
-# height = c(10.2, 11.5, 9.8, 10.9),
-# mass = c(5.1, 5.8, 4.9, 5.4)
-# )
-# df_prepared <- prepare_selection_data(
-#   data = df,
-#   fitness_col = "offspring",
-#   trait_cols = c("height", "mass"),
-#   na_action = "drop"
-# )
-# results:
-# offspring  height   mass  relative_fitness
-# 1         2  -0.54   -0.53        0.89
-# 2         4   1.22    1.32        1.78
-# 3         0  -1.08   -1.06        0.00
-# 4         3   0.41    0.26        1.33
+# IMPORTANT NOTE:
+#   For studies spanning multiple years, sites, or populations, traits should be
+#   standardized within each group (e.g., year, site) separately, not across all
+#   individuals pooled together. This ensures individuals are compared relative
+#   to their relevant context (same year, same environment). The same applies
+#   to relative fitness — it should be calculated within the same group.
 #
+#   This approach is equivalent to including group fixed effects in the
+#   regression models. However, it does NOT allow testing for group-by-trait
+#   interactions (i.e., whether selection varies across years). For that,
+#   researchers should fit separate models per group or include interaction
+#   terms in the regression.
 #
-# mean of c(2,4,0,3) = 2.25
-# relative fitness is (2,4,0,3)/2.25 = (0.89, 1.78, 0.00, 1.33)
-# fitness tell who succeed and traits tell why they succeed
-# selection is about traits associated with fitness, fitness itself not inherited, traits (genes) are, selections only leads to evolution if
-# traits affect fitness or traits are heritable
-
+# Parameters:
+#   data           : data frame containing fitness and trait measurements
+#   fitness_col    : name of the fitness column (character)
+#   trait_cols     : vector of trait column names
+#   standardize    : logical; if TRUE, standardize traits to mean 0, SD 1
+#   group          : optional grouping variable (e.g., "year", "site", "population")
+#                    When specified, standardization and relative fitness are
+#                    calculated separately within each group level.
+#   add_relative   : logical; if TRUE, add a relative fitness column
+#   na_action      : how to handle NAs ("warn", "drop", "none")
+#   name_relative  : name for the relative fitness column
+#
+# Returns:
+#   Modified data frame with:
+#     - Standardized traits (if standardize = TRUE)
+#     - Relative fitness column (if add_relative = TRUE)
+#     - Potentially dropped NA rows (if na_action = "drop")
+# ============================================================================
 
 prepare_selection_data <- function(data,
                                    fitness_col,
                                    trait_cols,
                                    standardize = TRUE,
+                                   group = NULL,
                                    add_relative = TRUE,
                                    na_action = c("warn", "drop", "none"),
                                    name_relative = "relative_fitness") {
-  # NA handling option
+  # Input validation
   na_action <- match.arg(na_action)
 
   df <- data.frame(data, check.names = FALSE)
@@ -58,41 +65,80 @@ prepare_selection_data <- function(data,
     df[[fitness_col]] <- as.numeric(df[[fitness_col]])
   }
 
-  # check rows with NA in fitness or trait columns
+  # Check if group column exists
+  if (!is.null(group)) {
+    if (!group %in% names(df)) {
+      stop("Group column '", group, "' not found in data")
+    }
+    cat("Standardizing and computing relative fitness within groups: '", group, "'\n")
+  }
+
+  # Handle missing values
   cols_check <- c(fitness_col, trait_cols)
+  if (!is.null(group)) {
+    cols_check <- c(cols_check, group)
+  }
+
   na_rows <- !stats::complete.cases(df[, cols_check, drop = FALSE])
 
   if (any(na_rows)) {
     n_bad <- sum(na_rows)
     msg <- sprintf(
-      "Detected %d row(s) with NA in fitness/traits: %s",
+      "Detected %d row(s) with NA in: %s",
       n_bad, paste(cols_check, collapse = ", ")
     )
     if (na_action == "warn") {
       warning(msg)
     } else if (na_action == "drop") {
       df <- df[!na_rows, , drop = FALSE]
-    } # if "none": do nothing
+      cat("Dropped", n_bad, "row(s) with missing values\n")
+    }
+    # if na_action == "none": do nothing, but later operations may fail
   }
 
-  # Standardize traits
+
+  # Standardize traits, z = (x - mean(x)) / sd(x)
   if (standardize) {
-    for (t in trait_cols) {
-      # Keep vectorized scale, strip attributes
-      df[[t]] <- as.numeric(scale(df[[t]]))
-    }
-  }
-
-  # Add relative fitness
-  if (add_relative) {
-    mean_fit <- mean(df[[fitness_col]], na.rm = TRUE)
-
-    if (!is.finite(mean_fit) || mean_fit == 0) {
-      warning("Mean fitness is zero or non-finite; cannot compute relative fitness. Skipping.")
+    if (!is.null(group)) {
+      # Standardize within each group
+      df <- df %>%
+        dplyr::group_by(.data[[group]]) %>%
+        dplyr::mutate(
+          dplyr::across(
+            dplyr::all_of(trait_cols),
+            ~ as.numeric(scale(.)),
+            .names = "{.col}"
+          )
+        ) %>%
+        dplyr::ungroup()
     } else {
-      df[[name_relative]] <- df[[fitness_col]] / mean_fit
+      # Standardize across all data
+      for (t in trait_cols) {
+        df[[t]] <- as.numeric(scale(df[[t]]))
+      }
     }
   }
 
-  df
+  # Add relative fitness, w_i = W_i / mean(W)
+  if (add_relative) {
+    if (!is.null(group)) {
+      # Calculate relative fitness within each group
+      df <- df %>%
+        dplyr::group_by(.data[[group]]) %>%
+        dplyr::mutate(
+          !!name_relative := .data[[fitness_col]] / mean(.data[[fitness_col]], na.rm = TRUE)
+        ) %>%
+        dplyr::ungroup()
+    } else {
+      # Calculate relative fitness across all data
+      mean_fit <- mean(df[[fitness_col]], na.rm = TRUE)
+      if (!is.finite(mean_fit) || mean_fit == 0) {
+        warning("Mean fitness is zero or non-finite; cannot compute relative fitness. Skipping.")
+      } else {
+        df[[name_relative]] <- df[[fitness_col]] / mean_fit
+      }
+    }
+  }
+
+  return(df)
 }

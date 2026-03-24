@@ -1,9 +1,28 @@
+# ======================================================
+# plot_fitness_surfaces_comparison.R
+# Compare Correlated Fitness Surface vs Adaptive Landscape
+#
+# IMPORTANT CONCEPT:
+# - Correlated Fitness Surface: individual-level (blue)
+# - Adaptive Landscape: population-level (red)
+# ======================================================
+
 plot_fitness_surfaces_comparison <- function(
   comparison_data,
   bins = 10,
-  title = NULL
+  title = NULL,
+  point_alpha = 0.7,
+  linewidth = 0.8,
+  show_optima = TRUE
 ) {
-    # Extract data
+    # Input validation
+    if (!"combined_data" %in% names(comparison_data)) {
+        stop("comparison_data must have 'combined_data' element")
+    }
+    if (!"trait_cols" %in% names(comparison_data)) {
+        stop("comparison_data must have 'trait_cols' element")
+    }
+
     combined <- comparison_data$combined_data
     trait_cols <- comparison_data$trait_cols
     optimum_individual <- comparison_data$optimum_individual
@@ -17,14 +36,13 @@ plot_fitness_surfaces_comparison <- function(
     cor_df <- combined[combined$type == "Correlated Fitness (Individual)", ]
     ada_df <- combined[combined$type == "Adaptive Landscape (Population)", ]
 
-    # 1. Correlated Fitness plot (Blue color scheme)
+    # Left plot: Correlated Fitness (Blue)
     p_cor <- ggplot2::ggplot(cor_df, ggplot2::aes(
         x = .data[[trait_cols[1]]],
         y = .data[[trait_cols[2]]],
         z = fitness
     )) +
         ggplot2::geom_contour_filled(bins = bins) +
-        # FIX: Use discrete color scale
         ggplot2::scale_fill_manual(
             values = colorRampPalette(c("lightblue", "steelblue", "darkblue", "navy"))(bins),
             name = "Fitness"
@@ -35,14 +53,20 @@ plot_fitness_surfaces_comparison <- function(
             title = "Correlated Fitness",
             subtitle = "Individual level"
         ) +
-        ggplot2::theme_minimal(base_size = 12) +
+        ggplot2::theme_bw() +
         ggplot2::theme(
-            aspect.ratio = 0.8,
-            plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
-            plot.subtitle = ggplot2::element_text(hjust = 0.5)
+            plot.background = ggplot2::element_blank(),
+            panel.grid.major = ggplot2::element_blank(),
+            panel.grid.minor = ggplot2::element_blank(),
+            panel.border = ggplot2::element_rect(color = "black", fill = NA, linewidth = 0.8),
+            axis.text = ggplot2::element_text(color = "black", size = 10),
+            axis.title = ggplot2::element_text(size = 12),
+            plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 12),
+            plot.subtitle = ggplot2::element_text(hjust = 0.5, size = 10, color = "gray40"),
+            aspect.ratio = 0.8
         )
 
-    # 2. Adaptive Landscape plot
+    # Right plot: Adaptive Landscape (Red)
     p_ada <- ggplot2::ggplot(ada_df, ggplot2::aes(
         x = .data[[trait_cols[1]]],
         y = .data[[trait_cols[2]]],
@@ -56,26 +80,39 @@ plot_fitness_surfaces_comparison <- function(
         ggplot2::labs(
             x = trait_cols[1],
             y = trait_cols[2],
-            title = "Adaptive Landscape"
+            title = "Adaptive Landscape",
+            subtitle = "Population level"
         ) +
-        ggplot2::theme_minimal(base_size = 12) +
+        ggplot2::theme_bw() +
         ggplot2::theme(
-            aspect.ratio = 0.8,
-            plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
-            plot.subtitle = ggplot2::element_text(hjust = 0.5)
+            plot.background = ggplot2::element_blank(),
+            panel.grid.major = ggplot2::element_blank(),
+            panel.grid.minor = ggplot2::element_blank(),
+            panel.border = ggplot2::element_rect(color = "black", fill = NA, linewidth = 0.8),
+            axis.text = ggplot2::element_text(color = "black", size = 10),
+            axis.title = ggplot2::element_text(size = 12),
+            plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 12),
+            plot.subtitle = ggplot2::element_text(hjust = 0.5, size = 10, color = "gray40"),
+            aspect.ratio = 0.8
         )
 
     # Combine side by side with patchwork
-    p_side <- p_cor + p_ada +
-        patchwork::plot_annotation(
-            title = title,
-            theme = ggplot2::theme(
-                plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 14)
+    if (requireNamespace("patchwork", quietly = TRUE)) {
+        p_side <- p_cor + p_ada +
+            patchwork::plot_annotation(
+                title = title,
+                theme = ggplot2::theme(
+                    plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 14)
+                )
             )
-        )
+    } else {
+        warning("Package 'patchwork' not installed. Cannot combine plots.")
+        p_side <- NULL
+    }
 
-    # 3. Overlay comparison (no color scale issue)
+    # Overlay comparison
     p_overlay <- ggplot2::ggplot() +
+        # Correlated fitness (blue dashed)
         ggplot2::geom_contour(
             data = cor_df,
             ggplot2::aes(
@@ -86,8 +123,9 @@ plot_fitness_surfaces_comparison <- function(
             ),
             linetype = "dashed",
             bins = bins,
-            linewidth = 0.9
+            linewidth = linewidth
         ) +
+        # Adaptive landscape (red solid)
         ggplot2::geom_contour(
             data = ada_df,
             ggplot2::aes(
@@ -98,8 +136,9 @@ plot_fitness_surfaces_comparison <- function(
             ),
             linetype = "solid",
             bins = bins,
-            linewidth = 0.9
+            linewidth = linewidth
         ) +
+        # Optimum points
         ggplot2::geom_point(
             data = optimum_individual,
             ggplot2::aes(
@@ -108,7 +147,8 @@ plot_fitness_surfaces_comparison <- function(
                 color = "Individual Optimum"
             ),
             size = 4,
-            shape = 18
+            shape = 18,
+            alpha = point_alpha
         ) +
         ggplot2::geom_point(
             data = optimum_population,
@@ -118,8 +158,10 @@ plot_fitness_surfaces_comparison <- function(
                 color = "Population Optimum"
             ),
             size = 4,
-            shape = 18
+            shape = 18,
+            alpha = point_alpha
         ) +
+        # Color scale
         ggplot2::scale_color_manual(
             name = "",
             values = c(
@@ -135,19 +177,26 @@ plot_fitness_surfaces_comparison <- function(
                 "Population Optimum" = "Population Optimum"
             )
         ) +
+        # Labels
         ggplot2::labs(
             x = trait_cols[1],
             y = trait_cols[2],
             title = "Overlay Comparison",
             subtitle = "Blue dashed: Individual fitness | Red solid: Population mean fitness\nBlue star: Individual optimum | Red star: Population optimum"
         ) +
-        ggplot2::theme_minimal(base_size = 12) +
+        ggplot2::theme_bw() +
         ggplot2::theme(
-            aspect.ratio = 0.8,
+            plot.background = ggplot2::element_blank(),
+            panel.grid.major = ggplot2::element_blank(),
+            panel.grid.minor = ggplot2::element_blank(),
+            panel.border = ggplot2::element_rect(color = "black", fill = NA, linewidth = 0.8),
+            axis.text = ggplot2::element_text(color = "black", size = 10),
+            axis.title = ggplot2::element_text(size = 12),
+            plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 14),
+            plot.subtitle = ggplot2::element_text(hjust = 0.5, size = 10, color = "gray40"),
             legend.position = "right",
             legend.box = "vertical",
-            plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
-            plot.subtitle = ggplot2::element_text(hjust = 0.5)
+            aspect.ratio = 1.0
         )
 
     return(list(

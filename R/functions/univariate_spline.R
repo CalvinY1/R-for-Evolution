@@ -1,19 +1,28 @@
 # ======================================================
 # univariate_spline.R
 # Estimate univariate correlated fitness function
+#
 # Important Concept Explanation:
 # This function calculates a UNIVARIATE CORRELATED FITNESS FUNCTION
 # Definition: Individual fitness ~ Individual phenotype (single trait)
 # Formula: w ~ f(z)
+#
 # This is a special case of correlated fitness surface (1D instead of 2D)
 # Adaptive landscape would require: Mean fitness ~ Population mean phenotype
+#
+# IMPORTANT NOTES
+#   - Traits should be standardized BEFORE calling this function
+#   - Use prepare_selection_data() with standardize = TRUE and optional group
+#   - The GAM smooth term estimates the shape of the fitness function
+#   - DO NOT use scale() within this function (double standardization)
 # ======================================================
 
-# Fit univariate spline for correlated fitness function
+
 univariate_spline <- function(data,
                               fitness_col,
                               trait_col,
                               fitness_type = c("binary", "continuous"),
+                              group = NULL,
                               k = 10) {
   fitness_type <- match.arg(fitness_type)
 
@@ -28,15 +37,45 @@ univariate_spline <- function(data,
     stop("`trait_col` must be numeric (standardize upstream if needed).")
   }
 
-  # Prepare fitness variable based on type
+  # Check if group column exists
+  if (!is.null(group) && !group %in% names(data)) {
+    stop("Group column '", group, "' not found in data")
+  }
+
+  # CHECK FOR DOUBLE STANDARDIZATION
+  # Warn users not to use scale() within this function
+  message("IMPORTANT: Traits should already be standardized (mean = 0, SD = 1).")
+  message("           Do NOT apply scale() again within this function.")
+
+  # Check if trait appears to be standardized (optional, very helpful)
+  z_mean <- mean(data[[trait_col]], na.rm = TRUE)
+  z_sd <- sd(data[[trait_col]], na.rm = TRUE)
+
+  if (abs(z_mean) > 0.1 || abs(z_sd - 1) > 0.1) {
+    warning(
+      "Trait '", trait_col, "' does not appear standardized ",
+      "(mean = ", round(z_mean, 3), ", SD = ", round(z_sd, 3), "). ",
+      "Consider using prepare_selection_data() first."
+    )
+  } else {
+    message("Trait appears standardized (mean ≈ 0, SD ≈ 1)")
+  }
+
   if (fitness_type == "continuous") {
     # For continuous fitness, use relative fitness if available
     if ("relative_fitness" %in% names(data)) {
       y <- data[["relative_fitness"]]
       fit_note <- "Using relative_fitness column"
     } else {
+      # Compute relative fitness on the fly (warning: not group-specific)
+      if (!is.null(group)) {
+        warning(
+          "Group specified but no relative_fitness column found. ",
+          "Consider using prepare_selection_data() first."
+        )
+      }
       y <- data[[fitness_col]] / mean(data[[fitness_col]], na.rm = TRUE)
-      fit_note <- "Computed relative fitness on the fly"
+      fit_note <- "Computed relative fitness on the fly (pooled)"
     }
     fam <- stats::gaussian()
     family_name <- "gaussian"
@@ -57,14 +96,40 @@ univariate_spline <- function(data,
     fit_note <- "Using original binary fitness"
   }
 
-  # Prepare data frame for modeling
   df <- data
   df[[".y"]] <- y
 
-  # Create formula with smooth term
-  fml <- stats::as.formula(paste0(".y ~ s(", trait_col, ", k = ", k, ")"))
+  # Adjust k based on unique values (avoid GAM errors)
+  n_unique <- length(unique(df[[trait_col]][complete.cases(df[[trait_col]])]))
+  n_obs <- sum(complete.cases(df[[trait_col]], y))
 
-  # Fit GAM with error handling
+  # k should not exceed n_unique - 1
+  k_adj <- min(k, max(3, n_unique - 1))
+  if (k_adj < k) {
+    warning(
+      "Reducing k from ", k, " to ", k_adj,
+      " (only ", n_unique, " unique values)"
+    )
+    k <- k_adj
+  }
+
+  # Check if sample size is sufficient
+  if (n_obs < k * 2) {
+    warning(
+      "Sample size (", n_obs, ") may be insufficient for k = ", k,
+      ". Consider reducing k."
+    )
+  }
+
+  # Create formula with smooth term
+  if (!is.null(group)) {
+    fml <- stats::as.formula(paste0(".y ~ ", group, " + s(", trait_col, ", k = ", k, ")"))
+    cat("Including group fixed effect: '", group, "'\n")
+  } else {
+    fml <- stats::as.formula(paste0(".y ~ s(", trait_col, ", k = ", k, ")"))
+  }
+
+  # Fit GAM
   fit <- tryCatch(
     {
       mgcv::gam(fml,
@@ -92,6 +157,20 @@ univariate_spline <- function(data,
   grid <- data.frame(seq(rng[1], rng[2], length.out = 200))
   names(grid) <- trait_col
 
+  # If group was specified, predictions need a reference group
+  if (!is.null(group)) {
+    group_levels <- unique(df[[group]])
+    # Use the median group (or first) as reference
+    # For factor groups, use the most common level
+    if (is.factor(df[[group]])) {
+      ref_group <- names(sort(table(df[[group]]), decreasing = TRUE))[1]
+    } else {
+      ref_group <- group_levels[which.min(abs(group_levels - median(group_levels)))]
+    }
+    grid[[group]] <- ref_group
+    cat("Predictions use group = '", ref_group, "' as reference\n")
+  }
+
   # Predict on link scale, then transform to response scale
   pr <- stats::predict(fit, newdata = grid, se.fit = TRUE, type = "link")
   linkinv <- fit$family$linkinv
@@ -100,7 +179,12 @@ univariate_spline <- function(data,
   grid$lwr <- linkinv(pr$fit - 1.96 * pr$se.fit)
   grid$upr <- linkinv(pr$fit + 1.96 * pr$se.fit)
 
-  # Prepare return object with metadata
+  # Ensure confidence bounds stay within [0,1] for binary fitness
+  if (fitness_type == "binary") {
+    grid$lwr <- pmax(grid$lwr, 0)
+    grid$upr <- pmin(grid$upr, 1)
+  }
+
   result <- list(
     model = fit,
     grid = grid,
@@ -108,9 +192,11 @@ univariate_spline <- function(data,
     fitness_type = fitness_type,
     family = family_name,
     k = k,
-    n_obs = sum(complete.cases(df[[trait_col]], y)),
+    n_obs = n_obs,
     fit_note = fit_note,
-    # Add type identifier
+    group_used = group,
+    trait_mean = z_mean,
+    trait_sd = z_sd,
     surface_type = "correlated_fitness_univariate",
     note = "Univariate correlated fitness function (individual fitness)"
   )
@@ -118,35 +204,4 @@ univariate_spline <- function(data,
   class(result) <- "univariate_fitness"
 
   return(result)
-}
-
-
-# Print method for univariate_fitness objects
-print.univariate_fitness <- function(x, ...) {
-  cat("Univariate Correlated Fitness Function\n")
-  cat("======================================\n")
-  cat("Trait:", x$trait, "\n")
-  cat("Fitness type:", x$fitness_type, "\n")
-  cat("Family:", x$family, "\n")
-  cat("Smooth term k =", x$k, "\n")
-  cat("Observations:", x$n_obs, "\n")
-  cat("Note:", x$fit_note, "\n")
-  cat("\n", x$note, "\n")
-
-  cat("\nFitness range on grid: [",
-    round(min(x$grid$fit), 3), ", ",
-    round(max(x$grid$fit), 3), "]\n",
-    sep = ""
-  )
-}
-
-
-# Summary method for univariate_fitness objects
-summary.univariate_fitness <- function(object, ...) {
-  cat("Univariate Correlated Fitness Function - Summary\n")
-  cat("================================================\n")
-  print.univariate_fitness(object)
-
-  cat("\nModel Summary:\n")
-  print(summary(object$model))
 }

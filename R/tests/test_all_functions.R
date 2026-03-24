@@ -71,7 +71,7 @@ for (f in plot_files) {
 }
 
 # ======================================================
-# 2 Output directories (defined AFTER scripts)
+# 2 Output directories
 # ======================================================
 
 library(here)
@@ -91,27 +91,27 @@ cat("  Figures:", figure_dir, "\n")
 cat("  Tables: ", table_dir, "\n")
 cat("  Models: ", model_dir, "\n")
 
-
 # ======================================================
-# 5 Create test data
+# 5 Create test data with group column
 # ======================================================
 
 cat("\nCreating synthetic test data...\n")
 
-set.seed(42)
-
+# Add group column for testing group-specific standardization
 df_binary <- data.frame(
     fitness = rbinom(80, 1, 0.6),
     size = rnorm(80, 5, 1),
     speed = rnorm(80, 10, 2),
-    color = rnorm(80, 3, 0.6)
+    color = rnorm(80, 3, 0.6),
+    year = sample(2003:2005, 80, replace = TRUE)
 )
 
 df_continuous <- data.frame(
     fitness = rpois(80, 3) + 1,
     size = rnorm(80, 5, 1),
     speed = rnorm(80, 10, 2),
-    color = rnorm(80, 3, 0.6)
+    color = rnorm(80, 3, 0.6),
+    year = sample(2003:2005, 80, replace = TRUE)
 )
 
 cat("Binary data:", dim(df_binary), "\n")
@@ -119,13 +119,13 @@ cat("Continuous data:", dim(df_continuous), "\n")
 
 TRAITS <- c("size", "speed", "color")
 FITNESS <- "fitness"
+GROUP <- "year"
 
 # ======================================================
-# 6 selection_coefficients
+# 6 selection_coefficients (with and without group)
 # ======================================================
 
-cat("\nTesting selection_coefficients...\n")
-
+# Without group
 test_binary <- selection_coefficients(
     data = df_binary,
     fitness_col = FITNESS,
@@ -133,6 +133,7 @@ test_binary <- selection_coefficients(
     fitness_type = "binary",
     standardize = TRUE
 )
+
 
 test_continuous <- selection_coefficients(
     data = df_continuous,
@@ -145,78 +146,243 @@ test_continuous <- selection_coefficients(
 write.csv(test_binary, file.path(table_dir, "selection_binary.csv"), row.names = FALSE)
 write.csv(test_continuous, file.path(table_dir, "selection_continuous.csv"), row.names = FALSE)
 
+# With group (test grouping functionality)
+cat("\nTesting selection_coefficients with group...\n")
+
+test_binary_group <- selection_coefficients(
+    data = df_binary,
+    fitness_col = FITNESS,
+    trait_cols = c("size", "speed"),
+    fitness_type = "binary",
+    standardize = TRUE,
+    group = "year",
+    return_grouped = TRUE
+)
+
+test_continuous_group <- selection_coefficients(
+    data = df_continuous,
+    fitness_col = FITNESS,
+    trait_cols = c("size", "speed"),
+    fitness_type = "continuous",
+    standardize = TRUE,
+    group = "year",
+    return_grouped = TRUE
+)
+
+write.csv(test_binary_group, file.path(table_dir, "selection_binary_group.csv"), row.names = FALSE)
+write.csv(test_continuous_group, file.path(table_dir, "selection_continuous_group.csv"), row.names = FALSE)
+
 cat("Selection coefficients Done\n")
 
 # ======================================================
-# 7 selection_differential
+# 7 selection_differential (with and without group)
 # ======================================================
 
 cat("\nTesting selection_differential...\n")
 
+# Without group
 sel_diff <- selection_differential(
     data = df_continuous,
     fitness_col = FITNESS,
     trait_col = "size"
 )
+cat("Selection differential (no group):", round(sel_diff, 4), "\n")
 
-cat("Selection differential:", round(sel_diff, 4), "\n")
+# With group (return grouped)
+sel_diff_grouped <- selection_differential(
+    data = df_continuous,
+    fitness_col = FITNESS,
+    trait_col = "size",
+    group = "year",
+    return_grouped = TRUE
+)
+
+cat("\nSelection differential by group:\n")
+print(sel_diff_grouped)
+
+# With group (return weighted mean)
+sel_diff_weighted <- selection_differential(
+    data = df_continuous,
+    fitness_col = FITNESS,
+    trait_col = "size",
+    group = "year",
+    return_grouped = FALSE
+)
+cat("\nWeighted selection differential:", round(sel_diff_weighted, 4), "\n")
+
+# Save grouped results
+write.csv(sel_diff_grouped, file.path(table_dir, "selection_differentials_grouped.csv"), row.names = FALSE)
+
+# Save overall (no group) result
+overall_df <- data.frame(
+    trait = "size",
+    selection_differential = sel_diff,
+    method = "overall",
+    note = "All data pooled (no grouping)"
+)
+write.csv(overall_df, file.path(table_dir, "selection_differentials_overall.csv"), row.names = FALSE)
+
+# Save weighted mean result
+weighted_df <- data.frame(
+    trait = "size",
+    selection_differential = sel_diff_weighted,
+    method = "weighted_mean",
+    note = "Weighted by group sample size"
+)
+write.csv(weighted_df, file.path(table_dir, "selection_differentials_weighted.csv"), row.names = FALSE)
 
 # ======================================================
-# 8 univariate spline + plot
+# 8 univariate spline + plot (with group)
 # ======================================================
 
-cat("\nTesting univariate surfaces...\n")
+univariate_dir <- file.path(figure_dir, "univariate")
+if (!dir.exists(univariate_dir)) dir.create(univariate_dir, recursive = TRUE)
 
-univariate_plots <- list()
+prepared_global <- prepare_selection_data(
+    data = df_continuous,
+    fitness_col = FITNESS,
+    trait_cols = TRAITS,
+    standardize = TRUE,
+    group = NULL,
+    add_relative = TRUE,
+    na_action = "drop"
+)
 
 for (trait in TRAITS) {
     spline <- univariate_spline(
-        data = df_continuous,
-        fitness_col = FITNESS,
+        data = prepared_global,
+        fitness_col = "relative_fitness",
         trait_col = trait,
         fitness_type = "continuous",
         k = 8
     )
 
-    if (exists("plot_univariate_fitness")) {
-        plot <- plot_univariate_fitness(
-            uni = spline,
+    p <- plot_univariate_fitness(
+        uni = spline,
+        trait_col = trait,
+        title = paste("Global:", trait)
+    )
+
+    ggsave(
+        file.path(univariate_dir, paste0("global_", trait, ".png")),
+        p,
+        width = 8,
+        height = 6,
+        dpi = 300
+    )
+}
+
+prepared_fixed <- prepare_selection_data(
+    data = df_continuous,
+    fitness_col = FITNESS,
+    trait_cols = TRAITS,
+    standardize = TRUE,
+    group = "year",
+    add_relative = TRUE,
+    na_action = "drop"
+)
+
+for (trait in TRAITS) {
+    spline <- univariate_spline(
+        data = prepared_fixed,
+        fitness_col = "relative_fitness",
+        trait_col = trait,
+        fitness_type = "continuous",
+        group = "year",
+        k = 8
+    )
+
+    p <- plot_univariate_fitness(
+        uni = spline,
+        trait_col = trait,
+        title = paste("Fixed Effects:", trait)
+    )
+
+    ggsave(
+        file.path(univariate_dir, paste0("fixed_", trait, ".png")),
+        p,
+        width = 8,
+        height = 6,
+        dpi = 300
+    )
+}
+cat("✓ Fixed effects plots saved\n")
+
+
+years <- unique(df_continuous$year)
+for (trait in TRAITS) {
+    for (year in years) {
+        data_year <- prepared_fixed[prepared_fixed$year == year, ]
+
+        spline <- univariate_spline(
+            data = data_year,
+            fitness_col = "relative_fitness",
             trait_col = trait,
-            title = paste("Univariate Correlated Fitness:", trait)
+            fitness_type = "continuous",
+            k = 8
         )
 
-        univariate_plots[[trait]] <- plot
+        p <- plot_univariate_fitness(
+            uni = spline,
+            trait_col = trait,
+            title = paste(trait, "- Year", year)
+        )
 
         ggsave(
-            file.path(figure_dir, paste0("univariate_", trait, ".png")),
-            plot,
+            file.path(univariate_dir, paste0("year_", year, "_", trait, ".png")),
+            p,
             width = 8,
             height = 6,
             dpi = 300
         )
-    } else {
-        cat("plot_univariate_fitness not found, using univariate_surface\n")
-        if (exists("univariate_surface")) {
-            plot <- univariate_surface(
-                uni = spline,
-                trait_col = trait
-            )
-            univariate_plots[[trait]] <- plot
-            ggsave(
-                file.path(figure_dir, paste0("univariate_", trait, ".png")),
-                plot,
-                width = 8,
-                height = 6,
-                dpi = 300
-            )
-        }
     }
 }
 
-cat("Univariate surfaces Done\n")
+# everything together
+if (requireNamespace("patchwork", quietly = TRUE)) {
+    for (trait in TRAITS) {
+        plots_list <- list()
+
+        for (year in years) {
+            data_year <- prepared_fixed[prepared_fixed$year == year, ]
+
+            spline <- univariate_spline(
+                data = data_year,
+                fitness_col = "relative_fitness",
+                trait_col = trait,
+                fitness_type = "continuous",
+                k = 8
+            )
+
+            p <- plot_univariate_fitness(
+                uni = spline,
+                trait_col = trait,
+                title = paste("Year", year)
+            ) + theme(legend.position = "none")
+
+            plots_list[[as.character(year)]] <- p
+        }
+
+        combined_plot <- patchwork::wrap_plots(plots_list, ncol = length(years))
+        combined_plot <- combined_plot + patchwork::plot_annotation(
+            title = paste("Univariate Fitness Functions:", trait),
+            subtitle = "Each year fitted separately"
+        )
+
+        ggsave(
+            file.path(univariate_dir, paste0("combined_years_", trait, ".png")),
+            combined_plot,
+            width = 8 * length(years),
+            height = 6,
+            dpi = 300,
+            limitsize = FALSE
+        )
+    }
+}
+
 
 # ======================================================
-# 9 correlated fitness surfaces
+# 9 correlated fitness surfaces (with group)
 # ======================================================
 
 cat("\nTesting correlated fitness surfaces...\n")
@@ -228,11 +394,13 @@ if (!exists("trait_pairs")) {
 cfs_plots <- list()
 
 for (pair in trait_pairs) {
+    # Without group
     cfs <- correlated_fitness_surface(
         data = df_continuous,
         fitness_col = FITNESS,
         trait_cols = pair,
-        grid_n = 30
+        grid_n = 30,
+        scale_traits = FALSE # Already standardized by prepare_selection_data
     )
 
     plot <- plot_correlated_fitness(
@@ -251,9 +419,34 @@ for (pair in trait_pairs) {
         dpi = 300
     )
 
+    # With group
+    cfs_group <- correlated_fitness_surface(
+        data = df_continuous,
+        fitness_col = FITNESS,
+        trait_cols = pair,
+        grid_n = 30,
+        scale_traits = FALSE,
+        group = "year"
+    )
+
+    plot_group <- plot_correlated_fitness(
+        tps = cfs_group,
+        trait_cols = pair
+    )
+
+    ggsave(
+        file.path(figure_dir, paste0("cfs_", name, "_group.png")),
+        plot_group,
+        width = 8,
+        height = 6,
+        dpi = 300
+    )
+
+    # Enhanced version
     if (exists("plot_correlated_fitness_enhanced")) {
         plot_enhanced <- plot_correlated_fitness_enhanced(
             tps = cfs,
+            trait_cols = pair,
             original_data = df_continuous,
             fitness_col = FITNESS
         )
@@ -270,44 +463,33 @@ for (pair in trait_pairs) {
 
 cat("Correlated fitness surfaces Done\n")
 
-# ======================================================
-# 10 bootstrap
-# ======================================================
-
-if (exists("bootstrap_selection")) {
-    cat("\nTesting bootstrap_selection...\n")
-
-    boot <- bootstrap_selection(
-        data = df_continuous,
-        fitness_col = FITNESS,
-        trait_cols = c("size", "speed"),
-        fitness_type = "continuous",
-        B = 50,
-        seed = 42
-    )
-
-    write.csv(boot$ci, file.path(table_dir, "bootstrap_ci.csv"), row.names = FALSE)
-
-    cat("Bootstrap Done\n")
-} else {
-    cat("\nSkipping bootstrap_selection (function not found)\n")
-}
 
 # ======================================================
-# 11 adaptive landscape
+# 11 adaptive landscape (with group)
 # ======================================================
+
 if (exists("adaptive_landscape")) {
     cat("\nTesting adaptive landscape...\n")
 
+    # Prepare data with grouping
+    df_prepared <- prepare_selection_data(
+        data = df_continuous,
+        fitness_col = FITNESS,
+        trait_cols = c("size", "speed"),
+        standardize = TRUE,
+        group = "year"
+    )
+
     fitness_model <- mgcv::gam(
         fitness ~ s(size, speed),
-        data = df_continuous
+        data = df_prepared
     )
 
     landscape <- adaptive_landscape(
-        data = df_continuous,
+        data = df_prepared,
         fitness_model = fitness_model,
         trait_cols = c("size", "speed"),
+        group_col = "year",
         simulation_n = 400,
         grid_n = 30
     )
@@ -317,12 +499,19 @@ if (exists("adaptive_landscape")) {
         file.path(model_dir, "adaptive_landscape.rds")
     )
 
+    cat("Column names in landscape$grid:\n")
+    print(names(landscape$grid))
+    cat("\nFirst few rows:\n")
+    print(head(landscape$grid))
+    cat("\n.mean_fit exists:", ".mean_fit" %in% names(landscape$grid), "\n")
+
     # 2D adaptive landscape plot
     if (exists("plot_adaptive_landscape")) {
         p <- plot_adaptive_landscape(
             landscape = landscape,
             trait_cols = c("size", "speed"),
-            original_data = df_continuous
+            original_data = df_prepared,
+            group_col = GROUP
         )
 
         ggsave(
@@ -382,7 +571,6 @@ if (exists("adaptive_landscape")) {
         cat("3D adaptive landscape plots saved (", length(angles) + 1, " angles)\n", sep = "")
 
         if (interactive()) {
-            cat("\nDisplaying interactive 3D plot (if in RStudio)...\n")
             plot_adaptive_landscape_3d(
                 landscape = landscape,
                 trait_cols = c("size", "speed")
@@ -394,7 +582,7 @@ if (exists("adaptive_landscape")) {
 }
 
 # ======================================================
-# 12 compare_fitness_surfaces - ALL PAIRS
+# 12 compare_fitness_surfaces - ALL PAIRS (with group)
 # ======================================================
 
 all_pairs <- list(
@@ -411,26 +599,36 @@ for (pair in all_pairs) {
 
     tryCatch(
         {
-            cfs <- correlated_fitness_surface(
+            # Prepare data with group
+            df_prepared <- prepare_selection_data(
                 data = df_continuous,
+                fitness_col = FITNESS,
+                trait_cols = pair,
+                standardize = TRUE,
+                group = "year"
+            )
+
+            cfs <- correlated_fitness_surface(
+                data = df_prepared,
                 fitness_col = FITNESS,
                 trait_cols = pair,
                 method = "tps",
                 grid_n = 30,
-                scale_traits = TRUE
+                scale_traits = FALSE
             )
 
             formula_str <- paste(FITNESS, "~ s(", pair[1], ",", pair[2], ")")
             fitness_model <- mgcv::gam(
                 as.formula(formula_str),
-                data = df_continuous,
+                data = df_prepared,
                 family = gaussian()
             )
 
             alt_landscape <- adaptive_landscape(
-                data = df_continuous,
+                data = df_prepared,
                 fitness_model = fitness_model,
                 trait_cols = pair,
+                group_col = GROUP,
                 simulation_n = 400,
                 grid_n = 30
             )
@@ -469,18 +667,21 @@ for (pair in all_pairs) {
                 cat("  Saved: overlay\n")
             }
 
-            cor_val <- cor(comparison_data$combined_data$fitness[comparison_data$combined_data$type == "Correlated Fitness (Individual)"],
+            cor_val <- cor(
+                comparison_data$combined_data$fitness[comparison_data$combined_data$type == "Correlated Fitness (Individual)"],
                 comparison_data$combined_data$fitness[comparison_data$combined_data$type == "Adaptive Landscape (Population)"],
                 use = "complete.obs"
             )
 
             cat("  Correlation between surfaces:", round(cor_val, 4), "\n")
+            cat("  Distance between optima:", round(comparison_data$distance_between_optima, 4), "\n")
 
             write.csv(
                 data.frame(
                     trait1 = pair[1],
                     trait2 = pair[2],
                     correlation = cor_val,
+                    distance = comparison_data$distance_between_optima,
                     n_points = nrow(comparison_data$combined_data) / 2
                 ),
                 file.path(table_dir, paste0("correlation_", pair_name, ".csv")),
@@ -490,7 +691,8 @@ for (pair in all_pairs) {
             comparison_results[[pair_name]] <- list(
                 comparison_data = comparison_data,
                 plots = plots,
-                correlation = cor_val
+                correlation = cor_val,
+                distance = comparison_data$distance_between_optima
             )
         },
         error = function(e) {
@@ -507,11 +709,16 @@ if (length(comparison_results) > 0) {
     summary_df <- data.frame()
     for (name in names(comparison_results)) {
         cor_val <- comparison_results[[name]]$correlation
+        dist_val <- comparison_results[[name]]$distance
         if (!is.null(cor_val)) {
-            cat(name, ": correlation =", round(cor_val, 4), "\n")
+            cat(
+                name, ": correlation =", round(cor_val, 4),
+                ", distance =", round(dist_val, 4), "\n"
+            )
             summary_df <- rbind(summary_df, data.frame(
                 Trait_Pair = name,
-                Correlation = round(cor_val, 4)
+                Correlation = round(cor_val, 4),
+                Distance = round(dist_val, 4)
             ))
         }
     }
@@ -590,26 +797,3 @@ if (exists("landscape")) {
 }
 
 cat("\nValidation results:", sum(tests), "/", length(tests), "passed\n")
-
-# ======================================================
-# 14 Final summary
-# ======================================================
-
-cat("\n========================================\n")
-cat("FUNCTION TESTING COMPLETE\n")
-cat("========================================\n")
-
-cat("\nFunctions loaded:", length(fn_files), "\n")
-cat("Plots created:", length(univariate_plots) + length(cfs_plots), "\n")
-
-cat("\nFiles generated:\n")
-cat("  Figures:", length(list.files(figure_dir)), "\n")
-cat("  Tables:", length(list.files(table_dir)), "\n")
-cat("  Models:", length(list.files(model_dir)), "\n")
-
-cat("\nResults saved to:\n")
-cat("  Figures:", figure_dir, "\n")
-cat("  Tables:", table_dir, "\n")
-cat("  Models:", model_dir, "\n")
-
-cat("\n========================================\n")

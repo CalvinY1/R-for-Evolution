@@ -7,15 +7,9 @@ cat("\n========================================\n")
 cat("Initializing R Environment\n")
 cat("========================================\n")
 
-# ------------------------------------------------------
-# 1. Set reproducibility seed
-# ------------------------------------------------------
 
 set.seed(42)
 
-# ------------------------------------------------------
-# 2. Load required packages
-# ------------------------------------------------------
 
 required_packages <- c(
     "mgcv", # GAM models
@@ -28,7 +22,9 @@ required_packages <- c(
     "here", # robust path handling
     "ggrepel", # for text labels in plots
     "viridis",
-    "patchwork"
+    "patchwork",
+    "akima",
+    "car"
 )
 
 load_or_install <- function(pkg) {
@@ -41,8 +37,6 @@ load_or_install <- function(pkg) {
 invisible(lapply(required_packages, load_or_install))
 cat("Packages loaded\n")
 
-# ------------------------------------------------------
-# 5. Print environment info
-# ------------------------------------------------------
+
 cat("\nR version:\n")
 print(R.version.string)

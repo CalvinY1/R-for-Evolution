@@ -1,3 +1,16 @@
+# ======================================================
+# plot_adaptive_landscape.R
+# Visualize Adaptive Landscape (population-level)
+#
+# IMPORTANT CONCEPT:
+# - Adaptive Landscape: mean fitness (W̄ ~ z̄₁, z̄₂)
+# - This is DIFFERENT from correlated fitness surface (individual-level)
+#
+# KEY PRINCIPLE:
+# - Traits should already be standardized
+# - DO NOT standardize again within this function
+# ======================================================
+
 plot_adaptive_landscape <- function(
   landscape,
   trait_cols,
@@ -5,7 +18,9 @@ plot_adaptive_landscape <- function(
   group_col = NULL,
   bins = 12,
   show_optimum = TRUE,
-  show_actual_means = TRUE
+  show_actual_means = TRUE,
+  point_alpha = 0.8,
+  ...
 ) {
     # Input validation
     if (!inherits(landscape, "adaptive_landscape")) {
@@ -13,9 +28,16 @@ plot_adaptive_landscape <- function(
     }
 
     df <- landscape$grid
-    names(df)[1:2] <- trait_cols
 
-    # Base plot
+    # Check if trait columns exist
+    if (!all(trait_cols %in% names(df))) {
+        stop(
+            "Trait columns not found in landscape$grid. ",
+            "Expected: ", paste(trait_cols, collapse = ", "), "\n",
+            "Found: ", paste(names(df), collapse = ", ")
+        )
+    }
+
     p <- ggplot2::ggplot(
         df,
         ggplot2::aes(
@@ -24,25 +46,42 @@ plot_adaptive_landscape <- function(
             z = .data[[".mean_fit"]]
         )
     ) +
+        # Filled contours
         ggplot2::geom_contour_filled(bins = bins) +
-        ggplot2::geom_contour(color = "black", alpha = 0.3) +
-        ggplot2::scale_fill_viridis_d(name = "Mean Fitness") +
+        # Contour lines
+        ggplot2::geom_contour(color = "black", alpha = 0.3, linewidth = 0.3) +
+        # Color scale (continuous)
+        ggplot2::scale_fill_viridis_d(name = "Mean Fitness", option = "plasma") +
+        # Labels
         ggplot2::labs(
             x = trait_cols[1],
             y = trait_cols[2],
-            title = "Adaptive Landscape"
+            title = "Adaptive Landscape",
+            subtitle = "Population-level mean fitness",
+            ...
         ) +
-        ggplot2::theme_minimal(base_size = 12) +
+        ggplot2::theme_bw() +
         ggplot2::theme(
-            aspect.ratio = 0.8,
-            plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
-            plot.subtitle = ggplot2::element_text(hjust = 0.5)
+            plot.background = ggplot2::element_blank(),
+            panel.grid.major = ggplot2::element_blank(),
+            panel.grid.minor = ggplot2::element_blank(),
+            panel.border = ggplot2::element_rect(color = "black", fill = NA, linewidth = 0.8),
+            axis.text = ggplot2::element_text(color = "black", size = 10),
+            axis.title = ggplot2::element_text(size = 12),
+            plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 14),
+            plot.subtitle = ggplot2::element_text(hjust = 0.5, size = 10, color = "gray40"),
+            aspect.ratio = 0.8
         )
 
+    # Add actual population means
     if (show_actual_means && !is.null(landscape$actual_population_means)) {
+        actual_df <- landscape$actual_population_means
+
+        actual_df <- actual_df[, c(trait_cols, group_col), drop = FALSE]
+
         p <- p +
             ggplot2::geom_point(
-                data = landscape$actual_population_means,
+                data = actual_df,
                 ggplot2::aes(
                     x = .data[[trait_cols[1]]],
                     y = .data[[trait_cols[2]]]
@@ -50,14 +89,16 @@ plot_adaptive_landscape <- function(
                 color = "red",
                 size = 4,
                 shape = 19,
-                alpha = 0.8
+                alpha = point_alpha,
+                inherit.aes = FALSE
             )
 
-        if (!is.null(group_col) && group_col %in% names(landscape$actual_population_means)) {
+        # Add labels if group_col provided
+        if (!is.null(group_col) && group_col %in% names(actual_df)) {
             if (requireNamespace("ggrepel", quietly = TRUE)) {
                 p <- p +
                     ggrepel::geom_text_repel(
-                        data = landscape$actual_population_means,
+                        data = actual_df,
                         ggplot2::aes(
                             x = .data[[trait_cols[1]]],
                             y = .data[[trait_cols[2]]],
@@ -65,12 +106,13 @@ plot_adaptive_landscape <- function(
                         ),
                         size = 3,
                         box.padding = 0.5,
-                        point.padding = 0.3
+                        point.padding = 0.3,
+                        inherit.aes = FALSE
                     )
             } else {
                 p <- p +
                     ggplot2::geom_text(
-                        data = landscape$actual_population_means,
+                        data = actual_df,
                         ggplot2::aes(
                             x = .data[[trait_cols[1]]],
                             y = .data[[trait_cols[2]]],
@@ -78,28 +120,35 @@ plot_adaptive_landscape <- function(
                         ),
                         size = 3,
                         vjust = -1,
-                        hjust = 0.5
+                        hjust = 0.5,
+                        inherit.aes = FALSE
                     )
             }
         }
     }
 
+    # Add optimum point
     if (show_optimum && !is.null(landscape$optimum)) {
+        opt_df <- landscape$optimum
+
+        opt_df <- opt_df[, trait_cols, drop = FALSE]
+
         p <- p +
             ggplot2::geom_point(
-                data = landscape$optimum,
+                data = opt_df,
                 ggplot2::aes(
                     x = .data[[trait_cols[1]]],
                     y = .data[[trait_cols[2]]]
                 ),
-                color = "yellow",
+                color = "gold",
                 size = 5,
-                shape = 18
+                shape = 18,
+                inherit.aes = FALSE
             ) +
             ggplot2::annotate(
                 "text",
-                x = landscape$optimum[[trait_cols[1]]],
-                y = landscape$optimum[[trait_cols[2]]],
+                x = opt_df[[trait_cols[1]]],
+                y = opt_df[[trait_cols[2]]],
                 label = "Optimum",
                 vjust = -1,
                 size = 3,
@@ -111,16 +160,31 @@ plot_adaptive_landscape <- function(
 }
 
 
+# ======================================================
+# plot_adaptive_landscape_3d
+# 3D perspective view of adaptive landscape
+# ======================================================
+
 plot_adaptive_landscape_3d <- function(
   landscape,
   trait_cols,
   theta = -30,
   phi = 30,
-  grid_n = 200
+  grid_n = 200,
+  color_palette = NULL,
+  ...
 ) {
+    # Input validation
+    if (!inherits(landscape, "adaptive_landscape")) {
+        warning("Object is not of class 'adaptive_landscape'")
+    }
+
     df <- landscape$grid
 
-    # Extract data
+    if (!all(trait_cols %in% names(df))) {
+        stop("Trait columns not found in landscape$grid")
+    }
+
     x <- df[[trait_cols[1]]]
     y <- df[[trait_cols[2]]]
     z <- df$.mean_fit
@@ -130,7 +194,6 @@ plot_adaptive_landscape_3d <- function(
     x <- x + rnorm(length(x), 0, 1e-8)
     y <- y + rnorm(length(y), 0, 1e-8)
 
-    # Interpolate for smooth surface
     interp <- akima::interp(
         x = x,
         y = y,
@@ -142,6 +205,14 @@ plot_adaptive_landscape_3d <- function(
         duplicate = "mean"
     )
 
+    if (is.null(color_palette)) {
+        if (requireNamespace("viridis", quietly = TRUE)) {
+            color_palette <- viridis::plasma(100)
+        } else {
+            color_palette <- grDevices::heat.colors(100)
+        }
+    }
+
     fields::drape.plot(
         x = interp$x,
         y = interp$y,
@@ -152,8 +223,9 @@ plot_adaptive_landscape_3d <- function(
         ylab = trait_cols[2],
         zlab = "Mean Fitness",
         main = "Adaptive Landscape (3D View)",
-        col = viridis::plasma(100),
+        col = color_palette,
         border = NA,
-        shade = 0.5
+        shade = 0.5,
+        ...
     )
 }

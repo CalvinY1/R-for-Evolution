@@ -1,18 +1,25 @@
 # ======================================================
 # adaptive_landscape.R
 # Calculate Adaptive Landscape (Sewall Wright's concept)
+#
 # IMPORTANT CONCEPT:
 # Adaptive Landscape = Mean fitness ~ Population mean phenotype
 # Formula: W̄ ~ z̄₁ + z̄₂
+#
 # This is DIFFERENT from correlated fitness surface:
 # - Correlated fitness: w ~ z (individual fitness)
 # - Adaptive landscape: W̄ ~ z̄ (population mean fitness)
+#
+# KEY PRINCIPLE:
+# - Traits MUST already be standardized (mean = 0, SD = 1)
+# - Use prepare_selection_data() with standardize = TRUE before calling
+# - DO NOT standardize again within this function
+#
 # Requires:
-# - A fitted fitness model (from GAM or TPS)
+# - A fitted fitness model (from GAM or TPS) that predicts individual fitness
 # - Individual-level data to estimate within-population variance
 # ======================================================
 
-# Calculate Adaptive Landscape
 adaptive_landscape <- function(
   data,
   fitness_model,
@@ -27,11 +34,31 @@ adaptive_landscape <- function(
     stopifnot(length(trait_cols) == 2L)
     stopifnot(inherits(fitness_model, "gam") || inherits(fitness_model, "Tps"))
 
-    # 1. Extract trait data
+    # DOUBLE STANDARDIZATION WARNING
+    message("IMPORTANT: Traits should already be standardized (mean = 0, SD = 1).")
+    message("           Use prepare_selection_data() before calling this function.")
+    message("           Do NOT standardize again within this function.")
+
+    # Check if traits appear standardized
+    for (t in trait_cols) {
+        if (t %in% names(data)) {
+            z_mean <- mean(data[[t]], na.rm = TRUE)
+            z_sd <- sd(data[[t]], na.rm = TRUE)
+            if (abs(z_mean) > 0.1 || abs(z_sd - 1) > 0.1) {
+                warning(
+                    "Trait '", t, "' does not appear standardized ",
+                    "(mean = ", round(z_mean, 3), ", SD = ", round(z_sd, 3), "). ",
+                    "Consider using prepare_selection_data() first."
+                )
+            }
+        }
+    }
+
+
     x1 <- data[[trait_cols[1]]]
     x2 <- data[[trait_cols[2]]]
 
-    # 2. Determine range for population mean grid
+    # Determine range for population mean grid
     if (!is.null(custom_range)) {
         x1_range <- custom_range[[trait_cols[1]]]
         x2_range <- custom_range[[trait_cols[2]]]
@@ -47,14 +74,14 @@ adaptive_landscape <- function(
     cat("  ", trait_cols[1], ":", round(x1_range, 2), "\n")
     cat("  ", trait_cols[2], ":", round(x2_range, 2), "\n")
 
-    # 3. Create grid of population mean phenotypes
+    # Create grid of population mean phenotypes
     g1 <- seq(x1_range[1], x1_range[2], length.out = grid_n)
     g2 <- seq(x2_range[1], x2_range[2], length.out = grid_n)
 
     population_grid <- expand.grid(g1, g2)
     names(population_grid) <- trait_cols
 
-    # 4. Estimate within-population variance if not provided
+    # Estimate within-population variance if not provided
     if (is.null(population_variance)) {
         # Use all data to estimate phenotypic variance
         trait_data <- data[, trait_cols, drop = FALSE]
@@ -84,7 +111,7 @@ adaptive_landscape <- function(
         print(round(population_variance, 4))
     }
 
-    # 5. Ensure variance matrix is positive definite
+    # Ensure variance matrix is positive definite
     if (inherits(try(chol(population_variance), silent = TRUE), "try-error")) {
         cat("Variance matrix not positive definite. Applying correction...\n")
         if (requireNamespace("Matrix", quietly = TRUE)) {
@@ -95,8 +122,10 @@ adaptive_landscape <- function(
         }
     }
 
-    # 6. Calculate mean fitness for each population mean
     mean_fitness <- numeric(nrow(population_grid))
+
+    # Progress indicator
+    cat("Calculating mean fitness for", nrow(population_grid), "grid points...\n")
 
     for (i in seq_len(nrow(population_grid))) {
         pop_mean <- population_grid[i, ]
@@ -122,16 +151,17 @@ adaptive_landscape <- function(
         mean_fitness[i] <- mean(ind_fitness, na.rm = TRUE)
     }
 
-    # 7. Add mean fitness to grid
+
+    # Add mean fitness to grid
     population_grid$.mean_fit <- mean_fitness
 
-    # 8. Find optimum (maximum mean fitness)
+    # Find optimum (maximum mean fitness)
     optimum <- population_grid[which.max(mean_fitness), ]
     cat("\nOptimal population mean phenotype:\n")
     print(optimum[, trait_cols, drop = FALSE])
     cat("Mean fitness at optimum:", round(optimum$.mean_fit, 4), "\n")
 
-    # 9. Calculate actual population means if group_col provided
+    # Calculate actual population means if group_col provided
     actual_means <- NULL
     if (!is.null(group_col) && group_col %in% names(data)) {
         actual_means <- aggregate(
@@ -145,7 +175,6 @@ adaptive_landscape <- function(
         print(actual_means)
     }
 
-    # 10. Return adaptive landscape object
     result <- list(
         grid = population_grid,
         trait_cols = trait_cols,
@@ -159,6 +188,12 @@ adaptive_landscape <- function(
             trait_ranges = list(
                 x1 = range(x1, na.rm = TRUE),
                 x2 = range(x2, na.rm = TRUE)
+            ),
+            traits_standardized = all(
+                sapply(trait_cols, function(t) {
+                    abs(mean(data[[t]], na.rm = TRUE)) < 0.1 &&
+                        abs(sd(data[[t]], na.rm = TRUE) - 1) < 0.1
+                })
             )
         ),
         surface_type = "adaptive_landscape",
@@ -178,6 +213,16 @@ print.adaptive_landscape <- function(x, ...) {
     cat("Grid size:", nrow(x$grid), "population means\n")
     cat("Simulations per point:", x$simulation_n, "individuals\n")
     cat("Fitness model:", x$fitness_model_class, "\n")
+
+    # Check if traits were standardized
+    if (!is.null(x$data_summary$traits_standardized)) {
+        if (x$data_summary$traits_standardized) {
+            cat("Traits: standardized (mean ≈ 0, SD ≈ 1)\n")
+        } else {
+            cat("WARNING: Traits may not be standardized!\n")
+        }
+    }
+
     cat("\nOptimal population mean phenotype:\n")
     print(x$optimum[, x$trait_cols, drop = FALSE])
     cat("Mean fitness at optimum:", round(x$optimum$.mean_fit, 4), "\n")
