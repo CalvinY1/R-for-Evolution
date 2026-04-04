@@ -36,19 +36,52 @@ univariate_spline <- function(data,
     stop("`trait_col` must be numeric (standardize upstream if needed).")
   }
 
-  # Check if group column exists
-  if (!is.null(group) && !group %in% names(data)) {
-    stop("Group column '", group, "' not found in data")
+  # ======================================================
+  # If group is specified, run separate analyses for each group
+  # ======================================================
+  if (!is.null(group)) {
+    if (!group %in% names(data)) {
+      stop("Group column '", group, "' not found in data")
+    }
+
+    groups <- unique(data[[group]])
+    results_list <- list()
+
+    for (g in groups) {
+      data_g <- data[data[[group]] == g, ]
+
+      # Recursively call without group
+      res <- univariate_spline(
+        data = data_g,
+        fitness_col = fitness_col,
+        trait_col = trait_col,
+        fitness_type = fitness_type,
+        group = NULL,
+        k = k
+      )
+
+      # Add group identifier
+      res$group_value <- g
+      results_list[[as.character(g)]] <- res
+    }
+
+    # Return list of results with group info
+    attr(results_list, "grouped") <- TRUE
+    attr(results_list, "groups") <- groups
+    attr(results_list, "group_col") <- group
+    return(results_list)
   }
 
-  # CHECK FOR DOUBLE STANDARDIZATION
-  # Warn users not to use scale() within this function
-  message("IMPORTANT: Traits should already be standardized (mean = 0, SD = 1).")
-  message("           Do NOT apply scale() again within this function.")
+  # ======================================================
+  # Main analysis (no grouping)
+  # ======================================================
 
   # Check if trait appears to be standardized
   z_mean <- mean(data[[trait_col]], na.rm = TRUE)
   z_sd <- sd(data[[trait_col]], na.rm = TRUE)
+
+  message("IMPORTANT: Traits should already be standardized (mean = 0, SD = 1).")
+  message("           Do NOT apply scale() again within this function.")
 
   if (abs(z_mean) > 0.1 || abs(z_sd - 1) > 0.1) {
     warning(
@@ -66,13 +99,6 @@ univariate_spline <- function(data,
       y <- data[["relative_fitness"]]
       fit_note <- "Using relative_fitness column"
     } else {
-      # Compute relative fitness on the fly (warning: not group-specific)
-      if (!is.null(group)) {
-        warning(
-          "Group specified but no relative_fitness column found. ",
-          "Consider using prepare_selection_data() first."
-        )
-      }
       y <- data[[fitness_col]] / mean(data[[fitness_col]], na.rm = TRUE)
       fit_note <- "Computed relative fitness on the fly (pooled)"
     }
@@ -84,7 +110,6 @@ univariate_spline <- function(data,
     fam <- stats::binomial("logit")
     family_name <- "binomial(logit)"
 
-    # Check if really binary
     unique_vals <- unique(y[!is.na(y)])
     if (!all(unique_vals %in% c(0, 1))) {
       warning(
@@ -98,11 +123,10 @@ univariate_spline <- function(data,
   df <- data
   df[[".y"]] <- y
 
-  # Adjust k based on unique values (avoid GAM errors)
+  # Adjust k based on unique values
   n_unique <- length(unique(df[[trait_col]][complete.cases(df[[trait_col]])]))
   n_obs <- sum(complete.cases(df[[trait_col]], y))
 
-  # k should not exceed n_unique - 1
   k_adj <- min(k, max(3, n_unique - 1))
   if (k_adj < k) {
     warning(
@@ -112,7 +136,6 @@ univariate_spline <- function(data,
     k <- k_adj
   }
 
-  # Check if sample size is sufficient
   if (n_obs < k * 2) {
     warning(
       "Sample size (", n_obs, ") may be insufficient for k = ", k,
@@ -120,13 +143,8 @@ univariate_spline <- function(data,
     )
   }
 
-  # Create formula with smooth term
-  if (!is.null(group)) {
-    fml <- stats::as.formula(paste0(".y ~ ", group, " + s(", trait_col, ", k = ", k, ")"))
-    cat("Including group fixed effect: '", group, "'\n")
-  } else {
-    fml <- stats::as.formula(paste0(".y ~ s(", trait_col, ", k = ", k, ")"))
-  }
+  # Create formula with smooth term (no group here)
+  fml <- stats::as.formula(paste0(".y ~ s(", trait_col, ", k = ", k, ")"))
 
   # Fit GAM
   fit <- tryCatch(
@@ -151,26 +169,12 @@ univariate_spline <- function(data,
     warning("GAM algorithm did not fully converge")
   }
 
-  # Create prediction grid across observed trait range
+  # Create prediction grid
   rng <- range(df[[trait_col]], na.rm = TRUE)
   grid <- data.frame(seq(rng[1], rng[2], length.out = 200))
   names(grid) <- trait_col
 
-  # If group was specified, predictions need a reference group
-  if (!is.null(group)) {
-    group_levels <- unique(df[[group]])
-    # Use the median group (or first) as reference
-    # For factor groups, use the most common level
-    if (is.factor(df[[group]])) {
-      ref_group <- names(sort(table(df[[group]]), decreasing = TRUE))[1]
-    } else {
-      ref_group <- group_levels[which.min(abs(group_levels - median(group_levels)))]
-    }
-    grid[[group]] <- ref_group
-    cat("Predictions use group = '", ref_group, "' as reference\n")
-  }
-
-  # Predict on link scale, then transform to response scale
+  # Predict
   pr <- stats::predict(fit, newdata = grid, se.fit = TRUE, type = "link")
   linkinv <- fit$family$linkinv
 
@@ -178,7 +182,6 @@ univariate_spline <- function(data,
   grid$lwr <- linkinv(pr$fit - 1.96 * pr$se.fit)
   grid$upr <- linkinv(pr$fit + 1.96 * pr$se.fit)
 
-  # Ensure confidence bounds stay within [0,1] for binary fitness
   if (fitness_type == "binary") {
     grid$lwr <- pmax(grid$lwr, 0)
     grid$upr <- pmin(grid$upr, 1)
@@ -193,7 +196,7 @@ univariate_spline <- function(data,
     k = k,
     n_obs = n_obs,
     fit_note = fit_note,
-    group_used = group,
+    group_used = NULL,
     trait_mean = z_mean,
     trait_sd = z_sd,
     surface_type = "correlated_fitness_univariate",

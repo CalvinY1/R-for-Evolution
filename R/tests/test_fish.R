@@ -3,6 +3,9 @@
 # Integration test using pupfish datasets (Crescent Pond + Little Lake)
 # ======================================================
 
+rm(list = ls())
+gc()
+
 cat("\n========================================\n")
 cat("PUPFISH DATASET FUNCTION TEST\n")
 cat("========================================\n")
@@ -69,7 +72,6 @@ for (f in plot_files) {
 # ======================================================
 # 5 Output directories
 # ======================================================
-library(here)
 
 output_dir <- here("R", "results", "pupfish_results")
 figure_dir <- file.path(output_dir, "figures")
@@ -139,17 +141,6 @@ main_data <- all_pupfish_data
 # checking
 cat("\nColumn names in combined data:\n")
 print(names(main_data))
-
-required_cols <- c(FITNESS_BINARY, FITNESS_CONTINUOUS, TRAITS, "lake")
-missing_cols <- required_cols[!required_cols %in% names(main_data)]
-if (length(missing_cols) > 0) {
-    cat("\nMissing columns:", paste(missing_cols, collapse = ", "), "\n")
-} else {
-    cat("\nAll required columns present!\n")
-}
-
-cat("\nFirst few rows:\n")
-print(head(main_data[, c(TRAITS[1:3], "lake")]))
 
 # ------------------------------------------------------
 # 7 Define traits and fitness
@@ -468,683 +459,1379 @@ write.csv(summary_all, file.path(table_dir, "selection_differentials_all.csv"), 
 # 10 Selection Coefficients
 # ======================================================
 
-selection_coef_all <- list()
-
-for (trait in TRAITS) {
-    cat("\n--- Trait:", trait, "---\n")
-
-    # ======================================================
-    # Binary - Overall
-    # ======================================================
-    selection_bin_overall_single <- tryCatch(
-        {
-            selection_coefficients(
-                data = prepared_binary,
-                fitness_col = FITNESS_BINARY,
-                trait_cols = trait,
-                fitness_type = "binary",
-                standardize = TRUE
-            )
-        },
-        error = function(e) {
-            cat("  Warning (binary overall):", e$message, "\n")
-            data.frame(
-                Term = trait,
-                Type = "Linear",
-                Beta_Coefficient = NA,
-                Standard_Error = NA,
-                P_Value = NA,
-                Variance = NA,
-                stringsAsFactors = FALSE
-            )
-        }
-    )
-
-    if (is.data.frame(selection_bin_overall_single) && nrow(selection_bin_overall_single) > 0) {
-        write.csv(selection_bin_overall_single,
-            file.path(table_dir, paste0("selection_binary_", trait, "_overall.csv")),
-            row.names = FALSE
-        )
-    }
-
-    # ======================================================
-    # Binary - By Lake
-    # ======================================================
-    selection_bin_by_lake_single <- tryCatch(
-        {
-            selection_coefficients(
-                data = prepared_binary_group,
-                fitness_col = FITNESS_BINARY,
-                trait_cols = trait,
-                fitness_type = "binary",
-                standardize = TRUE,
-                group = GROUP,
-                return_grouped = TRUE
-            )
-        },
-        error = function(e) {
-            cat("  Warning (binary by lake):", e$message, "\n")
-            # 返回空数据框
-            data.frame()
-        }
-    )
-
-    if (is.data.frame(selection_bin_by_lake_single) && nrow(selection_bin_by_lake_single) > 0) {
-        write.csv(selection_bin_by_lake_single,
-            file.path(table_dir, paste0("selection_binary_", trait, "_by_lake.csv")),
-            row.names = FALSE
-        )
-    }
-
-    # ======================================================
-    # Continuous - Overall
-    # ======================================================
-    selection_cont_overall_single <- tryCatch(
-        {
-            selection_coefficients(
-                data = prepared_continuous,
-                fitness_col = FITNESS_CONTINUOUS,
-                trait_cols = trait,
-                fitness_type = "continuous",
-                standardize = TRUE
-            )
-        },
-        error = function(e) {
-            cat("  Warning (continuous overall):", e$message, "\n")
-            data.frame(
-                Term = trait,
-                Type = "Linear",
-                Beta_Coefficient = NA,
-                Standard_Error = NA,
-                P_Value = NA,
-                Variance = NA,
-                stringsAsFactors = FALSE
-            )
-        }
-    )
-
-    if (is.data.frame(selection_cont_overall_single) && nrow(selection_cont_overall_single) > 0) {
-        write.csv(selection_cont_overall_single,
-            file.path(table_dir, paste0("selection_continuous_", trait, "_overall.csv")),
-            row.names = FALSE
-        )
-    }
-
-    # ======================================================
-    # Continuous - By Lake
-    # ======================================================
-    selection_cont_by_lake_single <- tryCatch(
-        {
-            selection_coefficients(
-                data = prepared_continuous_group,
-                fitness_col = FITNESS_CONTINUOUS,
-                trait_cols = trait,
-                fitness_type = "continuous",
-                standardize = TRUE,
-                group = GROUP,
-                return_grouped = TRUE
-            )
-        },
-        error = function(e) {
-            cat("  Warning (continuous by lake):", e$message, "\n")
-            data.frame()
-        }
-    )
-
-    if (is.data.frame(selection_cont_by_lake_single) && nrow(selection_cont_by_lake_single) > 0) {
-        write.csv(selection_cont_by_lake_single,
-            file.path(table_dir, paste0("selection_continuous_", trait, "_by_lake.csv")),
-            row.names = FALSE
-        )
-    }
-
-    selection_coef_all[[trait]] <- list(
-        binary = list(
-            overall = selection_bin_overall_single,
-            by_lake = selection_bin_by_lake_single
-        ),
-        continuous = list(
-            overall = selection_cont_overall_single,
-            by_lake = selection_cont_by_lake_single
-        )
-    )
-
-    if (is.data.frame(selection_bin_overall_single) && nrow(selection_bin_overall_single) > 0) {
-        beta_bin <- selection_bin_overall_single$Beta_Coefficient[selection_bin_overall_single$Term == trait]
-        if (length(beta_bin) > 0 && !is.na(beta_bin)) {
-            cat("  Binary (overall): β =", round(beta_bin, 4), "\n")
-        } else {
-            cat("  Binary (overall): NA\n")
-        }
-    } else {
-        cat("  Binary (overall): NA\n")
-    }
-
-    if (is.data.frame(selection_cont_overall_single) && nrow(selection_cont_overall_single) > 0) {
-        beta_cont <- selection_cont_overall_single$Beta_Coefficient[selection_cont_overall_single$Term == trait]
-        if (length(beta_cont) > 0 && !is.na(beta_cont)) {
-            cat("  Continuous (overall): β =", round(beta_cont, 4), "\n")
-        } else {
-            cat("  Continuous (overall): NA\n")
-        }
-    } else {
-        cat("  Continuous (overall): NA\n")
-    }
-}
-
-
-cat("\n--- Multi-trait Analysis ---\n")
-
-# Binary - Overall
-selection_bin_multi_overall <- tryCatch(
-    {
-        selection_coefficients(
-            data = prepared_binary,
-            fitness_col = FITNESS_BINARY,
-            trait_cols = TRAITS,
-            fitness_type = "binary",
-            standardize = TRUE
-        )
-    },
-    error = function(e) {
-        cat("Multi-trait binary overall failed:", e$message, "\n")
-        NULL
-    }
-)
-
-if (!is.null(selection_bin_multi_overall)) {
-    write.csv(selection_bin_multi_overall,
-        file.path(table_dir, "selection_binary_multi_overall.csv"),
-        row.names = FALSE
-    )
-    cat("  Binary multi-trait saved\n")
-}
-
-# Binary - By Lake
-selection_bin_multi_by_lake <- tryCatch(
-    {
-        selection_coefficients(
-            data = prepared_binary_group,
-            fitness_col = FITNESS_BINARY,
-            trait_cols = TRAITS,
-            fitness_type = "binary",
-            standardize = TRUE,
-            group = GROUP,
-            return_grouped = TRUE
-        )
-    },
-    error = function(e) {
-        cat("Multi-trait binary by lake failed:", e$message, "\n")
-        NULL
-    }
-)
-
-if (!is.null(selection_bin_multi_by_lake)) {
-    write.csv(selection_bin_multi_by_lake,
-        file.path(table_dir, "selection_binary_multi_by_lake.csv"),
-        row.names = FALSE
-    )
-    cat("  Binary multi-trait by lake saved\n")
-}
-
-# Continuous - Overall
-selection_cont_multi_overall <- tryCatch(
-    {
-        selection_coefficients(
-            data = prepared_continuous,
-            fitness_col = FITNESS_CONTINUOUS,
-            trait_cols = TRAITS,
-            fitness_type = "continuous",
-            standardize = TRUE
-        )
-    },
-    error = function(e) {
-        cat("Multi-trait continuous overall failed:", e$message, "\n")
-        NULL
-    }
-)
-
-if (!is.null(selection_cont_multi_overall)) {
-    write.csv(selection_cont_multi_overall,
-        file.path(table_dir, "selection_continuous_multi_overall.csv"),
-        row.names = FALSE
-    )
-    cat("  Continuous multi-trait saved\n")
-}
-
-# Continuous - By Lake
-selection_cont_multi_by_lake <- tryCatch(
-    {
-        selection_coefficients(
-            data = prepared_continuous_group,
-            fitness_col = FITNESS_CONTINUOUS,
-            trait_cols = TRAITS,
-            fitness_type = "continuous",
-            standardize = TRUE,
-            group = GROUP,
-            return_grouped = TRUE
-        )
-    },
-    error = function(e) {
-        cat("Multi-trait continuous by lake failed:", e$message, "\n")
-        NULL
-    }
-)
-
-if (!is.null(selection_cont_multi_by_lake)) {
-    write.csv(selection_cont_multi_by_lake,
-        file.path(table_dir, "selection_continuous_multi_by_lake.csv"),
-        row.names = FALSE
-    )
-    cat("  Continuous multi-trait by lake saved\n")
-}
-
-
-cat("\n=== Selection Coefficients Summary ===\n")
-
-summary_coef <- data.frame()
-
-for (trait in TRAITS) {
-    res <- selection_coef_all[[trait]]
-
-    # Binary overall
-    df_bin <- res$binary$overall
-    if (is.data.frame(df_bin) && nrow(df_bin) > 0) {
-        beta_bin <- df_bin$Beta_Coefficient[df_bin$Term == trait]
-        p_bin <- df_bin$P_Value[df_bin$Term == trait]
-
-        if (length(beta_bin) > 0) {
-            summary_coef <- rbind(summary_coef, data.frame(
-                Trait = trait,
-                Fitness = "Binary",
-                Analysis = "Overall",
-                Beta = beta_bin[1],
-                P_Value = p_bin[1],
-                stringsAsFactors = FALSE
-            ))
-        }
-    }
-
-    # Binary by lake
-    df_bin_lake <- res$binary$by_lake
-    if (is.data.frame(df_bin_lake) && nrow(df_bin_lake) > 0) {
-        for (i in 1:nrow(df_bin_lake)) {
-            if (df_bin_lake$Term[i] == trait) {
-                summary_coef <- rbind(summary_coef, data.frame(
-                    Trait = trait,
-                    Fitness = "Binary",
-                    Analysis = as.character(df_bin_lake[[GROUP]][i]),
-                    Beta = df_bin_lake$Beta_Coefficient[i],
-                    P_Value = df_bin_lake$P_Value[i],
-                    stringsAsFactors = FALSE
-                ))
-            }
-        }
-    }
-
-    # Continuous overall
-    df_cont <- res$continuous$overall
-    if (is.data.frame(df_cont) && nrow(df_cont) > 0) {
-        beta_cont <- df_cont$Beta_Coefficient[df_cont$Term == trait]
-        p_cont <- df_cont$P_Value[df_cont$Term == trait]
-
-        if (length(beta_cont) > 0) {
-            summary_coef <- rbind(summary_coef, data.frame(
-                Trait = trait,
-                Fitness = "Continuous",
-                Analysis = "Overall",
-                Beta = beta_cont[1],
-                P_Value = p_cont[1],
-                stringsAsFactors = FALSE
-            ))
-        }
-    }
-
-    # Continuous by lake
-    df_cont_lake <- res$continuous$by_lake
-    if (is.data.frame(df_cont_lake) && nrow(df_cont_lake) > 0) {
-        for (i in 1:nrow(df_cont_lake)) {
-            if (df_cont_lake$Term[i] == trait) {
-                summary_coef <- rbind(summary_coef, data.frame(
-                    Trait = trait,
-                    Fitness = "Continuous",
-                    Analysis = as.character(df_cont_lake[[GROUP]][i]),
-                    Beta = df_cont_lake$Beta_Coefficient[i],
-                    P_Value = df_cont_lake$P_Value[i],
-                    stringsAsFactors = FALSE
-                ))
-            }
-        }
-    }
-}
-
-
-write.csv(summary_coef, file.path(table_dir, "selection_coefficients_summary.csv"), row.names = FALSE)
-
-
-
-# ======================================================
-# 10 Selection Coefficients
-# ======================================================
+trait_pairs <- combn(TRAITS, 2, simplify = FALSE)
 
 selection_coef_all <- list()
 
-for (trait in TRAITS) {
-    cat("\n--- Trait:", trait, "---\n")
+# ======================================================
+# 10.1 Binary - Without group
+# ======================================================
+cat("\n--- Binary (Overall) ---\n")
 
-    # ======================================================
-    # Binary - Overall
-    # ======================================================
-    bin_overall <- tryCatch(
-        {
-            analyze_disruptive_selection(
-                data = prepared_binary,
-                fitness_col = FITNESS_BINARY,
-                trait_col = trait,
-                fitness_type = "binary",
-                standardize = TRUE
-            )
-        },
-        error = function(e) {
-            cat("  Warning (binary overall):", e$message, "\n")
-            NULL
-        }
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    result <- selection_coefficients(
+        data = prepared_binary,
+        fitness_col = FITNESS_BINARY,
+        trait_cols = pair,
+        fitness_type = "binary",
+        standardize = TRUE
     )
 
-    if (!is.null(bin_overall) && nrow(bin_overall) > 0) {
-        write.csv(bin_overall,
-            file.path(table_dir, paste0("selection_binary_", trait, "_overall.csv")),
-            row.names = FALSE
-        )
-    }
+    write.csv(result, file.path(table_dir, paste0("selection_binary_", pair_name, ".csv")), row.names = FALSE)
 
-    # ======================================================
-    # Binary - By Lake
-    # ======================================================
-    bin_by_lake <- data.frame()
-    for (lake in unique(prepared_binary_group[[GROUP]])) {
-        data_lake <- prepared_binary_group[prepared_binary_group[[GROUP]] == lake, ]
-
-        res <- tryCatch(
-            {
-                analyze_disruptive_selection(
-                    data = data_lake,
-                    fitness_col = FITNESS_BINARY,
-                    trait_col = trait,
-                    fitness_type = "binary",
-                    standardize = TRUE
-                )
-            },
-            error = function(e) {
-                NULL
-            }
-        )
-
-        if (!is.null(res) && nrow(res) > 0) {
-            res$Group <- lake
-            bin_by_lake <- rbind(bin_by_lake, res)
-        }
-    }
-
-    if (nrow(bin_by_lake) > 0) {
-        write.csv(bin_by_lake,
-            file.path(table_dir, paste0("selection_binary_", trait, "_by_lake.csv")),
-            row.names = FALSE
-        )
-    }
-
-    # ======================================================
-    # Continuous - Overall
-    # ======================================================
-    cont_overall <- tryCatch(
-        {
-            analyze_disruptive_selection(
-                data = prepared_continuous,
-                fitness_col = FITNESS_CONTINUOUS,
-                trait_col = trait,
-                fitness_type = "continuous",
-                standardize = TRUE
-            )
-        },
-        error = function(e) {
-            cat("  Warning (continuous overall):", e$message, "\n")
-            NULL
-        }
-    )
-
-    if (!is.null(cont_overall) && nrow(cont_overall) > 0) {
-        write.csv(cont_overall,
-            file.path(table_dir, paste0("selection_continuous_", trait, "_overall.csv")),
-            row.names = FALSE
-        )
-    }
-
-    # ======================================================
-    # Continuous - By Lake
-    # ======================================================
-    cont_by_lake <- data.frame()
-    for (lake in unique(prepared_continuous_group[[GROUP]])) {
-        data_lake <- prepared_continuous_group[prepared_continuous_group[[GROUP]] == lake, ]
-
-        res <- tryCatch(
-            {
-                analyze_disruptive_selection(
-                    data = data_lake,
-                    fitness_col = FITNESS_CONTINUOUS,
-                    trait_col = trait,
-                    fitness_type = "continuous",
-                    standardize = TRUE
-                )
-            },
-            error = function(e) {
-                NULL
-            }
-        )
-
-        if (!is.null(res) && nrow(res) > 0) {
-            res$Group <- lake
-            cont_by_lake <- rbind(cont_by_lake, res)
-        }
-    }
-
-    if (nrow(cont_by_lake) > 0) {
-        write.csv(cont_by_lake,
-            file.path(table_dir, paste0("selection_continuous_", trait, "_by_lake.csv")),
-            row.names = FALSE
-        )
-    }
-
-
-    selection_coef_all[[trait]] <- list(
-        binary = list(
-            overall = bin_overall,
-            by_lake = bin_by_lake
-        ),
-        continuous = list(
-            overall = cont_overall,
-            by_lake = cont_by_lake
-        )
-    )
-
-
-    if (!is.null(bin_overall) && nrow(bin_overall) > 0) {
-        beta_bin <- bin_overall$Beta_Coefficient[bin_overall$Type == "Linear"]
-        if (length(beta_bin) > 0) {
-            cat("  Binary (overall): β =", round(beta_bin[1], 4), "\n")
-        }
-    }
-
-    if (!is.null(cont_overall) && nrow(cont_overall) > 0) {
-        beta_cont <- cont_overall$Beta_Coefficient[cont_overall$Type == "Linear"]
-        if (length(beta_cont) > 0) {
-            cat("  Continuous (overall): β =", round(beta_cont[1], 4), "\n")
-        }
-    }
+    selection_coef_all[[paste0("binary_", pair_name)]] <- result
 }
 
+# ======================================================
+# 10.2 Continuous - Without group
+# ======================================================
+cat("\n--- Continuous (Overall) ---\n")
 
-cat("\n--- Multi-trait Analysis ---\n")
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
 
-# Binary - Overall
-selection_bin_multi_overall <- tryCatch(
-    {
-        selection_coefficients(
-            data = prepared_binary,
-            fitness_col = FITNESS_BINARY,
-            trait_cols = TRAITS,
-            fitness_type = "binary",
-            standardize = TRUE
-        )
-    },
-    error = function(e) {
-        cat("Multi-trait binary overall failed:", e$message, "\n")
-        NULL
-    }
-)
-
-if (!is.null(selection_bin_multi_overall)) {
-    write.csv(selection_bin_multi_overall,
-        file.path(table_dir, "selection_binary_multi_overall.csv"),
-        row.names = FALSE
+    result <- selection_coefficients(
+        data = prepared_continuous,
+        fitness_col = FITNESS_CONTINUOUS,
+        trait_cols = pair,
+        fitness_type = "continuous",
+        standardize = TRUE
     )
-    cat("  Binary multi-trait saved\n")
+
+    write.csv(result, file.path(table_dir, paste0("selection_continuous_", pair_name, ".csv")), row.names = FALSE)
+
+    selection_coef_all[[paste0("continuous_", pair_name)]] <- result
 }
 
-# Binary - By Lake
-selection_bin_multi_by_lake <- tryCatch(
-    {
-        selection_coefficients(
-            data = prepared_binary_group,
-            fitness_col = FITNESS_BINARY,
-            trait_cols = TRAITS,
-            fitness_type = "binary",
-            standardize = TRUE,
-            group = GROUP,
-            return_grouped = TRUE
-        )
-    },
-    error = function(e) {
-        cat("Multi-trait binary by lake failed:", e$message, "\n")
-        NULL
-    }
-)
+# ======================================================
+# 10.3 Binary - With group
+# ======================================================
 
-if (!is.null(selection_bin_multi_by_lake)) {
-    write.csv(selection_bin_multi_by_lake,
-        file.path(table_dir, "selection_binary_multi_by_lake.csv"),
-        row.names = FALSE
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    result <- selection_coefficients(
+        data = prepared_binary_group,
+        fitness_col = FITNESS_BINARY,
+        trait_cols = pair,
+        fitness_type = "binary",
+        standardize = TRUE,
+        group = GROUP,
+        return_grouped = TRUE
     )
-    cat("  Binary multi-trait by lake saved\n")
+
+    write.csv(result, file.path(table_dir, paste0("selection_binary_", pair_name, "_group.csv")), row.names = FALSE)
+
+    selection_coef_all[[paste0("binary_", pair_name, "_group")]] <- result
 }
 
-# Continuous - Overall
-selection_cont_multi_overall <- tryCatch(
-    {
-        selection_coefficients(
-            data = prepared_continuous,
-            fitness_col = FITNESS_CONTINUOUS,
-            trait_cols = TRAITS,
-            fitness_type = "continuous",
-            standardize = TRUE
-        )
-    },
-    error = function(e) {
-        cat("Multi-trait continuous overall failed:", e$message, "\n")
-        NULL
-    }
-)
+# ======================================================
+# 10.4 Continuous - With group
+# ======================================================
 
-if (!is.null(selection_cont_multi_overall)) {
-    write.csv(selection_cont_multi_overall,
-        file.path(table_dir, "selection_continuous_multi_overall.csv"),
-        row.names = FALSE
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    result <- selection_coefficients(
+        data = prepared_continuous_group,
+        fitness_col = FITNESS_CONTINUOUS,
+        trait_cols = pair,
+        fitness_type = "continuous",
+        standardize = TRUE,
+        group = GROUP,
+        return_grouped = TRUE
     )
-    cat("  Continuous multi-trait saved\n")
+
+    write.csv(result, file.path(table_dir, paste0("selection_continuous_", pair_name, "_group.csv")), row.names = FALSE)
+
+    selection_coef_all[[paste0("continuous_", pair_name, "_group")]] <- result
 }
 
-# Continuous - By Lake
-selection_cont_multi_by_lake <- tryCatch(
-    {
-        selection_coefficients(
-            data = prepared_continuous_group,
-            fitness_col = FITNESS_CONTINUOUS,
-            trait_cols = TRAITS,
-            fitness_type = "continuous",
-            standardize = TRUE,
-            group = GROUP,
-            return_grouped = TRUE
-        )
-    },
-    error = function(e) {
-        cat("Multi-trait continuous by lake failed:", e$message, "\n")
-        NULL
-    }
-)
-
-if (!is.null(selection_cont_multi_by_lake)) {
-    write.csv(selection_cont_multi_by_lake,
-        file.path(table_dir, "selection_continuous_multi_by_lake.csv"),
-        row.names = FALSE
-    )
-    cat("  Continuous multi-trait by lake saved\n")
-}
-
-
-cat("\n=== Selection Coefficients Summary (Univariate) ===\n")
+# ======================================================
+# 10.5 Selection Coefficients Summary Table
+# ======================================================
 
 summary_coef <- data.frame()
 
-for (trait in TRAITS) {
-    res <- selection_coef_all[[trait]]
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
 
     # Binary overall
-    if (!is.null(res$binary$overall) && nrow(res$binary$overall) > 0) {
-        df <- res$binary$overall
-        beta <- df$Beta_Coefficient[df$Type == "Linear"]
-        p_val <- df$P_Value[df$Type == "Linear"]
-        gamma <- df$Beta_Coefficient[df$Type == "Quadratic"]
-        p_gamma <- df$P_Value[df$Type == "Quadratic"]
+    binary_key <- paste0("binary_", pair_name)
+    if (!is.null(selection_coef_all[[binary_key]])) {
+        df <- selection_coef_all[[binary_key]]
 
-        if (length(beta) > 0) {
+        beta_rows <- df[df$Type == "Linear", ]
+        for (i in 1:nrow(beta_rows)) {
             summary_coef <- rbind(summary_coef, data.frame(
-                Trait = trait,
+                Trait1 = pair[1],
+                Trait2 = pair[2],
+                Term = beta_rows$Term[i],
                 Fitness = "Binary",
                 Analysis = "Overall",
-                Beta = beta[1],
-                P_Beta = p_val[1],
-                Gamma = ifelse(length(gamma) > 0, gamma[1], NA),
-                P_Gamma = ifelse(length(p_gamma) > 0, p_gamma[1], NA),
+                Type = "Linear",
+                Coefficient = round(beta_rows$Beta_Coefficient[i], 4),
+                P_Value = beta_rows$P_Value[i],
+                stringsAsFactors = FALSE
+            ))
+        }
+
+        gamma_rows <- df[df$Type == "Quadratic", ]
+        for (i in 1:nrow(gamma_rows)) {
+            summary_coef <- rbind(summary_coef, data.frame(
+                Trait1 = pair[1],
+                Trait2 = pair[2],
+                Term = gamma_rows$Term[i],
+                Fitness = "Binary",
+                Analysis = "Overall",
+                Type = "Quadratic",
+                Coefficient = round(gamma_rows$Beta_Coefficient[i], 4),
+                P_Value = gamma_rows$P_Value[i],
+                stringsAsFactors = FALSE
+            ))
+        }
+
+        inter_rows <- df[df$Type == "Correlational", ]
+        for (i in 1:nrow(inter_rows)) {
+            summary_coef <- rbind(summary_coef, data.frame(
+                Trait1 = pair[1],
+                Trait2 = pair[2],
+                Term = inter_rows$Term[i],
+                Fitness = "Binary",
+                Analysis = "Overall",
+                Type = "Correlational",
+                Coefficient = round(inter_rows$Beta_Coefficient[i], 4),
+                P_Value = inter_rows$P_Value[i],
                 stringsAsFactors = FALSE
             ))
         }
     }
 
     # Continuous overall
-    if (!is.null(res$continuous$overall) && nrow(res$continuous$overall) > 0) {
-        df <- res$continuous$overall
-        beta <- df$Beta_Coefficient[df$Type == "Linear"]
-        p_val <- df$P_Value[df$Type == "Linear"]
-        gamma <- df$Beta_Coefficient[df$Type == "Quadratic"]
-        p_gamma <- df$P_Value[df$Type == "Quadratic"]
+    continuous_key <- paste0("continuous_", pair_name)
+    if (!is.null(selection_coef_all[[continuous_key]])) {
+        df <- selection_coef_all[[continuous_key]]
 
-        if (length(beta) > 0) {
+        beta_rows <- df[df$Type == "Linear", ]
+        for (i in 1:nrow(beta_rows)) {
             summary_coef <- rbind(summary_coef, data.frame(
-                Trait = trait,
+                Trait1 = pair[1],
+                Trait2 = pair[2],
+                Term = beta_rows$Term[i],
                 Fitness = "Continuous",
                 Analysis = "Overall",
-                Beta = beta[1],
-                P_Beta = p_val[1],
-                Gamma = ifelse(length(gamma) > 0, gamma[1], NA),
-                P_Gamma = ifelse(length(p_gamma) > 0, p_gamma[1], NA),
+                Type = "Linear",
+                Coefficient = round(beta_rows$Beta_Coefficient[i], 4),
+                P_Value = beta_rows$P_Value[i],
+                stringsAsFactors = FALSE
+            ))
+        }
+
+        gamma_rows <- df[df$Type == "Quadratic", ]
+        for (i in 1:nrow(gamma_rows)) {
+            summary_coef <- rbind(summary_coef, data.frame(
+                Trait1 = pair[1],
+                Trait2 = pair[2],
+                Term = gamma_rows$Term[i],
+                Fitness = "Continuous",
+                Analysis = "Overall",
+                Type = "Quadratic",
+                Coefficient = round(gamma_rows$Beta_Coefficient[i], 4),
+                P_Value = gamma_rows$P_Value[i],
+                stringsAsFactors = FALSE
+            ))
+        }
+
+        inter_rows <- df[df$Type == "Correlational", ]
+        for (i in 1:nrow(inter_rows)) {
+            summary_coef <- rbind(summary_coef, data.frame(
+                Trait1 = pair[1],
+                Trait2 = pair[2],
+                Term = inter_rows$Term[i],
+                Fitness = "Continuous",
+                Analysis = "Overall",
+                Type = "Correlational",
+                Coefficient = round(inter_rows$Beta_Coefficient[i], 4),
+                P_Value = inter_rows$P_Value[i],
+                stringsAsFactors = FALSE
+            ))
+        }
+    }
+
+    # Binary with group
+    binary_group_key <- paste0("binary_", pair_name, "_group")
+    if (!is.null(selection_coef_all[[binary_group_key]])) {
+        df <- selection_coef_all[[binary_group_key]]
+        linear_rows <- df[df$Type == "Linear", ]
+
+        for (i in 1:nrow(linear_rows)) {
+            group_name <- linear_rows[[GROUP]][i]
+            summary_coef <- rbind(summary_coef, data.frame(
+                Trait1 = pair[1],
+                Trait2 = pair[2],
+                Term = linear_rows$Term[i],
+                Fitness = "Binary",
+                Analysis = paste0("Group: ", group_name),
+                Type = "Linear",
+                Coefficient = round(linear_rows$Beta_Coefficient[i], 4),
+                P_Value = linear_rows$P_Value[i],
+                stringsAsFactors = FALSE
+            ))
+        }
+    }
+
+    # Continuous with group
+    continuous_group_key <- paste0("continuous_", pair_name, "_group")
+    if (!is.null(selection_coef_all[[continuous_group_key]])) {
+        df <- selection_coef_all[[continuous_group_key]]
+        linear_rows <- df[df$Type == "Linear", ]
+
+        for (i in 1:nrow(linear_rows)) {
+            group_name <- linear_rows[[GROUP]][i]
+            summary_coef <- rbind(summary_coef, data.frame(
+                Trait1 = pair[1],
+                Trait2 = pair[2],
+                Term = linear_rows$Term[i],
+                Fitness = "Continuous",
+                Analysis = paste0("Group: ", group_name),
+                Type = "Linear",
+                Coefficient = round(linear_rows$Beta_Coefficient[i], 4),
+                P_Value = linear_rows$P_Value[i],
                 stringsAsFactors = FALSE
             ))
         }
     }
 }
 
-write.csv(summary_coef, file.path(table_dir, "selection_coefficients_summary.csv"), row.names = FALSE)
+write.csv(summary_coef, file.path(table_dir, "selection_coefficients_summary_all.csv"), row.names = FALSE)
+
+# ======================================================
+# 11 analyze_disruptive_selection
+# ======================================================
+
+disruptive_binary <- list()
+
+for (trait in TRAITS) {
+    res <- analyze_disruptive_selection(
+        data = prepared_binary,
+        fitness_col = FITNESS_BINARY,
+        trait_col = trait,
+        fitness_type = "binary",
+        standardize = TRUE
+    )
+
+    disruptive_binary[[trait]] <- res
+
+    write.csv(res, file.path(table_dir, paste0("disruptive_binary_", trait, ".csv")), row.names = FALSE)
+
+    linear_row <- res[res$Type == "Linear", ]
+    quadratic_row <- res[res$Type == "Quadratic", ]
+}
+
+# ======================================================
+# Binary - With group
+# ======================================================
+disruptive_binary_group <- list()
+
+for (trait in TRAITS) {
+    res <- analyze_disruptive_selection(
+        data = prepared_binary_group,
+        fitness_col = FITNESS_BINARY,
+        trait_col = trait,
+        fitness_type = "binary",
+        standardize = TRUE,
+        group = GROUP,
+        return_grouped = TRUE
+    )
+
+    disruptive_binary_group[[trait]] <- res
+
+    write.csv(res, file.path(table_dir, paste0("disruptive_binary_", trait, "_group.csv")), row.names = FALSE)
+}
+
+# ======================================================
+# Continuous - Without group
+# ======================================================
+disruptive_continuous <- list()
+
+for (trait in TRAITS) {
+    res <- analyze_disruptive_selection(
+        data = prepared_continuous,
+        fitness_col = FITNESS_CONTINUOUS,
+        trait_col = trait,
+        fitness_type = "continuous",
+        standardize = TRUE
+    )
+
+    disruptive_continuous[[trait]] <- res
+
+    write.csv(
+        res,
+        file.path(table_dir, paste0("disruptive_continuous_", trait, ".csv")),
+        row.names = FALSE
+    )
+
+    linear_row <- res[res$Type == "Linear", ]
+    quadratic_row <- res[res$Type == "Quadratic", ]
+}
+
+# ======================================================
+# Continuous - With group
+# ======================================================
+
+disruptive_continuous_group <- list()
+
+for (trait in TRAITS) {
+    res <- analyze_disruptive_selection(
+        data = prepared_continuous_group,
+        fitness_col = FITNESS_CONTINUOUS,
+        trait_col = trait,
+        fitness_type = "continuous",
+        standardize = TRUE,
+        group = GROUP,
+        return_grouped = TRUE
+    )
+
+    disruptive_continuous_group[[trait]] <- res
+
+    write.csv(
+        res,
+        file.path(table_dir, paste0("disruptive_continuous_", trait, "_group.csv")),
+        row.names = FALSE
+    )
+}
+
+cat("\n=== Disruptive Selection Summary Table ===\n")
+
+summary_df <- data.frame()
+
+for (trait in TRAITS) {
+    # Binary overall
+    if (!is.null(disruptive_binary[[trait]])) {
+        df <- disruptive_binary[[trait]]
+        linear_row <- df[df$Type == "Linear", ]
+        quadratic_row <- df[df$Type == "Quadratic", ]
+
+        summary_df <- rbind(summary_df, data.frame(
+            Trait = trait,
+            Fitness = "Binary",
+            Analysis = "Overall",
+            Beta = round(linear_row$Beta_Coefficient, 4),
+            P_Beta = linear_row$P_Value,
+            Gamma = round(quadratic_row$Beta_Coefficient, 4),
+            P_Gamma = quadratic_row$P_Value,
+            Selection = ifelse(quadratic_row$P_Value < 0.05,
+                ifelse(quadratic_row$Beta_Coefficient > 0, "Disruptive", "Stabilizing"),
+                "None"
+            ),
+            stringsAsFactors = FALSE
+        ))
+    }
+
+    # Continuous overall
+    if (!is.null(disruptive_continuous[[trait]])) {
+        df <- disruptive_continuous[[trait]]
+        linear_row <- df[df$Type == "Linear", ]
+        quadratic_row <- df[df$Type == "Quadratic", ]
+
+        summary_df <- rbind(summary_df, data.frame(
+            Trait = trait,
+            Fitness = "Continuous",
+            Analysis = "Overall",
+            Beta = round(linear_row$Beta_Coefficient, 4),
+            P_Beta = linear_row$P_Value,
+            Gamma = round(quadratic_row$Beta_Coefficient, 4),
+            P_Gamma = quadratic_row$P_Value,
+            Selection = ifelse(quadratic_row$P_Value < 0.05,
+                ifelse(quadratic_row$Beta_Coefficient > 0, "Disruptive", "Stabilizing"),
+                "None"
+            ),
+            stringsAsFactors = FALSE
+        ))
+    }
+}
+
+write.csv(summary_df, file.path(table_dir, "disruptive_selection_summary.csv"), row.names = FALSE)
 
 
 # ======================================================
-# 10 Selection Coefficients
+# 12 Univariate Spline + Plot
 # ======================================================
+
+cat("\n=== Univariate Spline Analysis ===\n")
+
+# Binary - Without group
+cat("\n--- Binary (Overall) ---\n")
+for (trait in TRAITS) {
+    spline <- univariate_spline(
+        data = prepared_binary,
+        fitness_col = FITNESS_BINARY,
+        trait_col = trait,
+        fitness_type = "binary",
+        group = NULL
+    )
+    saveRDS(spline, file.path(model_dir, paste0("spline_binary_", trait, ".rds")))
+
+    if (exists("plot_univariate_fitness")) {
+        p <- plot_univariate_fitness(uni = spline, trait_col = trait)
+        ggplot2::ggsave(file.path(figure_dir, paste0("spline_binary_", trait, ".png")), p, width = 7, height = 5, dpi = 300)
+    }
+}
+
+# Binary - With group
+cat("\n--- Binary (By Lake) ---\n")
+for (trait in TRAITS) {
+    spline_list <- univariate_spline(
+        data = prepared_binary_group,
+        fitness_col = FITNESS_BINARY,
+        trait_col = trait,
+        fitness_type = "binary",
+        group = GROUP
+    )
+
+    for (lake in names(spline_list)) {
+        saveRDS(spline_list[[lake]], file.path(model_dir, paste0("spline_binary_", trait, "_", lake, ".rds")))
+
+        if (exists("plot_univariate_fitness")) {
+            p <- plot_univariate_fitness(uni = spline_list[[lake]], trait_col = trait)
+            ggplot2::ggsave(file.path(figure_dir, paste0("spline_binary_", trait, "_", lake, ".png")), p, width = 7, height = 5, dpi = 300)
+        }
+    }
+}
+
+# Continuous - Without group
+cat("\n--- Continuous (Overall) ---\n")
+for (trait in TRAITS) {
+    spline <- univariate_spline(
+        data = prepared_continuous,
+        fitness_col = FITNESS_CONTINUOUS,
+        trait_col = trait,
+        fitness_type = "continuous",
+        group = NULL
+    )
+    saveRDS(spline, file.path(model_dir, paste0("spline_continuous_", trait, ".rds")))
+
+    if (exists("plot_univariate_fitness")) {
+        p <- plot_univariate_fitness(uni = spline, trait_col = trait)
+        ggplot2::ggsave(file.path(figure_dir, paste0("spline_continuous_", trait, ".png")), p, width = 7, height = 5, dpi = 300)
+    }
+}
+
+# Continuous - With group
+cat("\n--- Continuous (By Lake) ---\n")
+for (trait in TRAITS) {
+    spline_list <- univariate_spline(
+        data = prepared_continuous_group,
+        fitness_col = FITNESS_CONTINUOUS,
+        trait_col = trait,
+        fitness_type = "continuous",
+        group = GROUP
+    )
+
+    for (lake in names(spline_list)) {
+        saveRDS(spline_list[[lake]], file.path(model_dir, paste0("spline_continuous_", trait, "_", lake, ".rds")))
+
+        if (exists("plot_univariate_fitness")) {
+            p <- plot_univariate_fitness(uni = spline_list[[lake]], trait_col = trait)
+            ggplot2::ggsave(file.path(figure_dir, paste0("spline_continuous_", trait, "_", lake, ".png")), p, width = 7, height = 5, dpi = 300)
+        }
+    }
+}
+
+# ======================================================
+# 13 Correlated Fitness Surfaces
+# ======================================================
+
+cat("\n=== Correlated Fitness Surfaces ===\n")
+
+trait_pairs <- combn(TRAITS, 2, simplify = FALSE)
+
+# Binary - Without group
+cat("\n--- Binary (Overall) ---\n")
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    cfs <- correlated_fitness_surface(
+        data = prepared_binary,
+        fitness_col = FITNESS_BINARY,
+        trait_cols = pair,
+        grid_n = 60,
+        method = "auto",
+        scale_traits = FALSE,
+        group = NULL
+    )
+
+    saveRDS(cfs, file.path(model_dir, paste0("cfs_binary_", pair_name, ".rds")))
+
+    if (exists("plot_correlated_fitness")) {
+        plot <- plot_correlated_fitness(tps = cfs, trait_cols = pair)
+        ggplot2::ggsave(file.path(figure_dir, paste0("cfs_binary_", pair_name, ".png")), plot, width = 8, height = 6, dpi = 300)
+    }
+}
+
+# Binary - With group
+cat("\n--- Binary (By Lake) ---\n")
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    cfs_list <- correlated_fitness_surface(
+        data = prepared_binary_group,
+        fitness_col = FITNESS_BINARY,
+        trait_cols = pair,
+        grid_n = 60,
+        method = "auto",
+        scale_traits = FALSE,
+        group = GROUP,
+        k = 20
+    )
+
+    for (lake in names(cfs_list)) {
+        saveRDS(cfs_list[[lake]], file.path(model_dir, paste0("cfs_binary_", pair_name, "_", lake, ".rds")))
+
+        if (exists("plot_correlated_fitness")) {
+            plot <- plot_correlated_fitness(tps = cfs_list[[lake]], trait_cols = pair)
+            ggplot2::ggsave(file.path(figure_dir, paste0("cfs_binary_", pair_name, "_", lake, ".png")), plot, width = 8, height = 6, dpi = 300)
+        }
+    }
+}
+
+# Continuous - Without group
+cat("\n--- Continuous (Overall) ---\n")
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    cfs <- correlated_fitness_surface(
+        data = prepared_continuous,
+        fitness_col = FITNESS_CONTINUOUS,
+        trait_cols = pair,
+        grid_n = 60,
+        method = "auto",
+        scale_traits = FALSE,
+        group = NULL
+    )
+
+    saveRDS(cfs, file.path(model_dir, paste0("cfs_continuous_", pair_name, ".rds")))
+
+    if (exists("plot_correlated_fitness")) {
+        plot <- plot_correlated_fitness(tps = cfs, trait_cols = pair)
+        ggplot2::ggsave(file.path(figure_dir, paste0("cfs_continuous_", pair_name, ".png")), plot, width = 8, height = 6, dpi = 300)
+    }
+}
+
+# Continuous - With group
+cat("\n--- Continuous (By Lake) ---\n")
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    cfs_list <- correlated_fitness_surface(
+        data = prepared_continuous_group,
+        fitness_col = FITNESS_CONTINUOUS,
+        trait_cols = pair,
+        grid_n = 60,
+        method = "auto",
+        scale_traits = FALSE,
+        group = GROUP,
+        k = 20
+    )
+
+    for (lake in names(cfs_list)) {
+        saveRDS(cfs_list[[lake]], file.path(model_dir, paste0("cfs_continuous_", pair_name, "_", lake, ".rds")))
+
+        if (exists("plot_correlated_fitness")) {
+            plot <- plot_correlated_fitness(tps = cfs_list[[lake]], trait_cols = pair)
+            ggplot2::ggsave(file.path(figure_dir, paste0("cfs_continuous_", pair_name, "_", lake, ".png")), plot, width = 8, height = 6, dpi = 300)
+        }
+    }
+}
+
+# ======================================================
+# 11 Adaptive Landscape
+# ======================================================
+
+cat("\n=== Adaptive Landscape Analysis ===\n")
+
+sites <- unique(prepared_binary_group[[GROUP]])
+site_info <- data.frame(
+    name = sites,
+    label = gsub(" ", "_", sites), # "Crescent Pond" -> "Crescent_Pond"
+    type = ifelse(grepl("Pond", sites), "pond", ifelse(grepl("Lake", sites), "lake", "site")),
+    stringsAsFactors = FALSE
+)
+
+trait_pairs <- combn(TRAITS, 2, simplify = FALSE)
+
+# ======================================================
+# 11.1 Binary - Without group
+# ======================================================
+
+cat("\n--- Binary (Overall) ---\n")
+
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    # Fit GAM model for this trait pair
+    formula_str <- paste(FITNESS_BINARY, "~ s(", pair[1], ", ", pair[2], ")")
+    fitness_model <- mgcv::gam(
+        as.formula(formula_str),
+        family = binomial,
+        data = prepared_binary
+    )
+
+    # Create adaptive landscape
+    landscape <- adaptive_landscape(
+        data = prepared_binary,
+        fitness_model = fitness_model,
+        trait_cols = pair,
+        simulation_n = 500,
+        grid_n = 60
+    )
+
+    saveRDS(landscape, file.path(model_dir, paste0("adaptive_landscape_binary_", pair_name, "_overall.rds")))
+
+    # 2D plot
+    if (exists("plot_adaptive_landscape")) {
+        points_data <- prepared_binary[, c(FITNESS_BINARY, pair)]
+
+        p2d <- plot_adaptive_landscape(
+            landscape = landscape,
+            trait_cols = pair,
+            original_data = points_data,
+            bins = 12
+        )
+
+        ggplot2::ggsave(
+            file.path(figure_dir, paste0("adaptive_landscape_binary_", pair_name, "_overall_2d.png")),
+            p2d,
+            width = 8,
+            height = 6,
+            dpi = 300
+        )
+    }
+
+    # 3D plot
+    if (exists("plot_adaptive_landscape_3d")) {
+        png(
+            file.path(figure_dir, paste0("adaptive_landscape_binary_", pair_name, "_overall_3d.png")),
+            width = 8,
+            height = 6,
+            units = "in",
+            res = 300
+        )
+
+        plot_adaptive_landscape_3d(
+            landscape = landscape,
+            trait_cols = pair,
+            theta = -30,
+            phi = 30,
+            grid_n = 200
+        )
+
+        dev.off()
+    }
+}
+
+# ======================================================
+# 11.2 Binary - With group
+# ======================================================
+
+cat("\n--- Binary (By Site) ---\n")
+
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    for (i in 1:nrow(site_info)) {
+        site <- site_info$name[i]
+        site_label <- site_info$label[i]
+        site_type <- site_info$type[i]
+
+        cat("  Processing:", site, "(", site_type, ")\n")
+
+        site_data <- prepared_binary_group[prepared_binary_group[[GROUP]] == site, ]
+
+        # Fit GAM for this site
+        formula_str <- paste(FITNESS_BINARY, "~ s(", pair[1], ", ", pair[2], ")")
+        fitness_model <- mgcv::gam(
+            as.formula(formula_str),
+            family = binomial,
+            data = site_data
+        )
+
+        # Create adaptive landscape
+        landscape <- adaptive_landscape(
+            data = site_data,
+            fitness_model = fitness_model,
+            trait_cols = pair,
+            simulation_n = 500,
+            grid_n = 60
+        )
+
+        saveRDS(landscape, file.path(model_dir, paste0("adaptive_landscape_binary_", pair_name, "_", site_label, ".rds")))
+
+        # 2D plot
+        if (exists("plot_adaptive_landscape")) {
+            points_data <- site_data[, c(FITNESS_BINARY, pair)]
+
+            p2d <- plot_adaptive_landscape(
+                landscape = landscape,
+                trait_cols = pair,
+                original_data = points_data,
+                bins = 12
+            )
+
+            ggplot2::ggsave(
+                file.path(figure_dir, paste0("adaptive_landscape_binary_", pair_name, "_", site_label, "_2d.png")),
+                p2d,
+                width = 8,
+                height = 6,
+                dpi = 300
+            )
+        }
+
+        # 3D plot
+        if (exists("plot_adaptive_landscape_3d")) {
+            png(
+                file.path(figure_dir, paste0("adaptive_landscape_binary_", pair_name, "_", site_label, "_3d.png")),
+                width = 8,
+                height = 6,
+                units = "in",
+                res = 300
+            )
+
+            plot_adaptive_landscape_3d(
+                landscape = landscape,
+                trait_cols = pair,
+                theta = -30,
+                phi = 30,
+                grid_n = 200
+            )
+
+            dev.off()
+        }
+    }
+}
+
+# ======================================================
+# 11.3 Continuous - Without group
+# ======================================================
+
+cat("\n--- Continuous (Overall) ---\n")
+
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    # Fit GAM model for this trait pair
+    formula_str <- paste(FITNESS_CONTINUOUS, "~ s(", pair[1], ", ", pair[2], ")")
+    fitness_model <- mgcv::gam(
+        as.formula(formula_str),
+        family = gaussian,
+        data = prepared_continuous
+    )
+
+    # Create adaptive landscape
+    landscape <- adaptive_landscape(
+        data = prepared_continuous,
+        fitness_model = fitness_model,
+        trait_cols = pair,
+        simulation_n = 500,
+        grid_n = 60
+    )
+
+    saveRDS(landscape, file.path(model_dir, paste0("adaptive_landscape_continuous_", pair_name, "_overall.rds")))
+
+    # 2D plot
+    if (exists("plot_adaptive_landscape")) {
+        points_data <- prepared_continuous[, c(FITNESS_CONTINUOUS, pair)]
+
+        p2d <- plot_adaptive_landscape(
+            landscape = landscape,
+            trait_cols = pair,
+            original_data = points_data,
+            bins = 12
+        )
+
+        ggplot2::ggsave(
+            file.path(figure_dir, paste0("adaptive_landscape_continuous_", pair_name, "_overall_2d.png")),
+            p2d,
+            width = 8,
+            height = 6,
+            dpi = 300
+        )
+    }
+
+    # 3D plot
+    if (exists("plot_adaptive_landscape_3d")) {
+        png(
+            file.path(figure_dir, paste0("adaptive_landscape_continuous_", pair_name, "_overall_3d.png")),
+            width = 8,
+            height = 6,
+            units = "in",
+            res = 300
+        )
+
+        plot_adaptive_landscape_3d(
+            landscape = landscape,
+            trait_cols = pair,
+            theta = -30,
+            phi = 30,
+            grid_n = 200
+        )
+
+        dev.off()
+    }
+}
+
+# ======================================================
+# 11.4 Continuous - With group
+# ======================================================
+
+cat("\n--- Continuous (By Site) ---\n")
+
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    for (i in 1:nrow(site_info)) {
+        site <- site_info$name[i]
+        site_label <- site_info$label[i]
+        site_type <- site_info$type[i]
+
+        cat("  Processing:", site, "(", site_type, ")\n")
+
+        site_data <- prepared_continuous_group[prepared_continuous_group[[GROUP]] == site, ]
+
+        # Fit GAM for this site
+        formula_str <- paste(FITNESS_CONTINUOUS, "~ s(", pair[1], ", ", pair[2], ")")
+        fitness_model <- mgcv::gam(
+            as.formula(formula_str),
+            family = gaussian,
+            data = site_data
+        )
+
+        # Create adaptive landscape
+        landscape <- adaptive_landscape(
+            data = site_data,
+            fitness_model = fitness_model,
+            trait_cols = pair,
+            simulation_n = 500,
+            grid_n = 60
+        )
+
+        saveRDS(landscape, file.path(model_dir, paste0("adaptive_landscape_continuous_", pair_name, "_", site_label, ".rds")))
+
+        # 2D plot
+        if (exists("plot_adaptive_landscape")) {
+            points_data <- site_data[, c(FITNESS_CONTINUOUS, pair)]
+
+            p2d <- plot_adaptive_landscape(
+                landscape = landscape,
+                trait_cols = pair,
+                original_data = points_data,
+                bins = 12
+            )
+
+            ggplot2::ggsave(
+                file.path(figure_dir, paste0("adaptive_landscape_continuous_", pair_name, "_", site_label, "_2d.png")),
+                p2d,
+                width = 8,
+                height = 6,
+                dpi = 300
+            )
+        }
+
+        # 3D plot
+        if (exists("plot_adaptive_landscape_3d")) {
+            png(
+                file.path(figure_dir, paste0("adaptive_landscape_continuous_", pair_name, "_", site_label, "_3d.png")),
+                width = 8,
+                height = 6,
+                units = "in",
+                res = 300
+            )
+
+            plot_adaptive_landscape_3d(
+                landscape = landscape,
+                trait_cols = pair,
+                theta = -30,
+                phi = 30,
+                grid_n = 200
+            )
+
+            dev.off()
+        }
+    }
+}
+
+# ======================================================
+# 11.5 Summary Table
+# ======================================================
+
+cat("\n=== Adaptive Landscape Summary ===\n")
+
+summary_landscape <- data.frame()
+
+# Collect binary overall optima
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+    file_path <- file.path(model_dir, paste0("adaptive_landscape_binary_", pair_name, "_overall.rds"))
+
+    if (file.exists(file_path)) {
+        landscape <- readRDS(file_path)
+        summary_landscape <- rbind(summary_landscape, data.frame(
+            Trait1 = pair[1],
+            Trait2 = pair[2],
+            Fitness = "Binary",
+            Site = "Overall",
+            Site_Type = "overall",
+            Optimum_Trait1 = round(landscape$optimum[[pair[1]]], 4),
+            Optimum_Trait2 = round(landscape$optimum[[pair[2]]], 4),
+            Max_Fitness = round(landscape$optimum$.mean_fit, 4),
+            stringsAsFactors = FALSE
+        ))
+    }
+}
+
+# Collect continuous overall optima
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+    file_path <- file.path(model_dir, paste0("adaptive_landscape_continuous_", pair_name, "_overall.rds"))
+
+    if (file.exists(file_path)) {
+        landscape <- readRDS(file_path)
+        summary_landscape <- rbind(summary_landscape, data.frame(
+            Trait1 = pair[1],
+            Trait2 = pair[2],
+            Fitness = "Continuous",
+            Site = "Overall",
+            Site_Type = "overall",
+            Optimum_Trait1 = round(landscape$optimum[[pair[1]]], 4),
+            Optimum_Trait2 = round(landscape$optimum[[pair[2]]], 4),
+            Max_Fitness = round(landscape$optimum$.mean_fit, 4),
+            stringsAsFactors = FALSE
+        ))
+    }
+}
+
+# Collect binary by site optima
+for (i in 1:nrow(site_info)) {
+    site <- site_info$name[i]
+    site_label <- site_info$label[i]
+    site_type <- site_info$type[i]
+
+    for (pair in trait_pairs) {
+        pair_name <- paste(pair, collapse = "_")
+        file_path <- file.path(model_dir, paste0("adaptive_landscape_binary_", pair_name, "_", site_label, ".rds"))
+
+        if (file.exists(file_path)) {
+            landscape <- readRDS(file_path)
+            summary_landscape <- rbind(summary_landscape, data.frame(
+                Trait1 = pair[1],
+                Trait2 = pair[2],
+                Fitness = "Binary",
+                Site = site,
+                Site_Type = site_type,
+                Optimum_Trait1 = round(landscape$optimum[[pair[1]]], 4),
+                Optimum_Trait2 = round(landscape$optimum[[pair[2]]], 4),
+                Max_Fitness = round(landscape$optimum$.mean_fit, 4),
+                stringsAsFactors = FALSE
+            ))
+        }
+    }
+}
+
+# Collect continuous by site optima
+for (i in 1:nrow(site_info)) {
+    site <- site_info$name[i]
+    site_label <- site_info$label[i]
+    site_type <- site_info$type[i]
+
+    for (pair in trait_pairs) {
+        pair_name <- paste(pair, collapse = "_")
+        file_path <- file.path(model_dir, paste0("adaptive_landscape_continuous_", pair_name, "_", site_label, ".rds"))
+
+        if (file.exists(file_path)) {
+            landscape <- readRDS(file_path)
+            summary_landscape <- rbind(summary_landscape, data.frame(
+                Trait1 = pair[1],
+                Trait2 = pair[2],
+                Fitness = "Continuous",
+                Site = site,
+                Site_Type = site_type,
+                Optimum_Trait1 = round(landscape$optimum[[pair[1]]], 4),
+                Optimum_Trait2 = round(landscape$optimum[[pair[2]]], 4),
+                Max_Fitness = round(landscape$optimum$.mean_fit, 4),
+                stringsAsFactors = FALSE
+            ))
+        }
+    }
+}
+
+write.csv(summary_landscape, file.path(table_dir, "adaptive_landscape_summary.csv"), row.names = FALSE)
+
+# ======================================================
+# 12 Compare Fitness Surfaces
+# ======================================================
+
+cat("\n=== Compare Fitness Surfaces ===\n")
+
+trait_pairs <- combn(TRAITS, 2, simplify = FALSE)
+
+sites <- c("Crescent Pond", "Little Lake")
+site_labels <- c("Crescent_Pond", "Little_Lake")
+
+comparison_results <- list()
+
+# ======================================================
+# 12.1 Compare Binary Fitness Surfaces
+# ======================================================
+
+cat("\n--- Binary Fitness Surfaces ---\n")
+
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    cfs_overall_file <- file.path(model_dir, paste0("cfs_binary_", pair_name, ".rds"))
+    if (!file.exists(cfs_overall_file)) {
+        cat("  Skipping", pair_name, "- missing overall CFS\n")
+        next
+    }
+    cfs_overall <- readRDS(cfs_overall_file)
+
+    al_overall_file <- file.path(model_dir, paste0("adaptive_landscape_binary_", pair_name, "_overall.rds"))
+    if (!file.exists(al_overall_file)) {
+        cat("  Skipping", pair_name, "- missing overall AL\n")
+        next
+    }
+    al_overall <- readRDS(al_overall_file)
+
+    cat("  Comparing:", pair_name, "(Overall)\n")
+
+    comparison_data_overall <- compare_fitness_surfaces_data(
+        correlated_surface = cfs_overall,
+        adaptive_landscape = al_overall,
+        trait_cols = pair
+    )
+
+    plots_overall <- plot_fitness_surfaces_comparison(
+        comparison_data = comparison_data_overall,
+        bins = 10,
+        title = paste("Fitness Surfaces Comparison -", pair_name, "(Overall)")
+    )
+
+    if (!is.null(plots_overall$side_by_side)) {
+        ggplot2::ggsave(
+            file.path(figure_dir, paste0("comparison_binary_", pair_name, "_overall_side_by_side.png")),
+            plots_overall$side_by_side,
+            width = 12,
+            height = 5,
+            dpi = 300
+        )
+    }
+
+    if (!is.null(plots_overall$overlay)) {
+        ggplot2::ggsave(
+            file.path(figure_dir, paste0("comparison_binary_", pair_name, "_overall_overlay.png")),
+            plots_overall$overlay,
+            width = 8,
+            height = 6,
+            dpi = 300
+        )
+    }
+
+    cor_df_overall <- comparison_data_overall$combined_data
+    individual_fit_overall <- cor_df_overall$fitness[cor_df_overall$type == "Correlated Fitness (Individual)"]
+    population_fit_overall <- cor_df_overall$fitness[cor_df_overall$type == "Adaptive Landscape (Population)"]
+    cor_val_overall <- cor(individual_fit_overall, population_fit_overall, use = "complete.obs")
+
+    write.csv(
+        data.frame(
+            trait1 = pair[1],
+            trait2 = pair[2],
+            fitness = "binary",
+            comparison_type = "overall",
+            site = "Overall",
+            correlation = cor_val_overall,
+            n_points = length(individual_fit_overall)
+        ),
+        file.path(table_dir, paste0("comparison_binary_", pair_name, "_overall_correlation.csv")),
+        row.names = FALSE
+    )
+
+    comparison_results[[paste0("binary_", pair_name, "_overall")]] <- list(
+        correlation = cor_val_overall,
+        site = "Overall"
+    )
+
+    for (i in seq_along(sites)) {
+        site <- sites[i]
+        site_label <- site_labels[i]
+        site_type <- ifelse(grepl("Pond", site), "pond", "lake")
+
+        cfs_site_file <- file.path(model_dir, paste0("cfs_binary_", pair_name, "_", site, ".rds"))
+        if (!file.exists(cfs_site_file)) {
+            cat("    Skipping", site, "- missing CFS\n")
+            next
+        }
+        cfs_site <- readRDS(cfs_site_file)
+
+        al_site_file <- file.path(model_dir, paste0("adaptive_landscape_binary_", pair_name, "_", site_label, ".rds"))
+        if (!file.exists(al_site_file)) {
+            cat("    Skipping", site, "- missing AL\n")
+            next
+        }
+        al_site <- readRDS(al_site_file)
+
+        cat("    Comparing:", pair_name, "-", site, "(", site_type, ")\n")
+
+        comparison_data_site <- compare_fitness_surfaces_data(
+            correlated_surface = cfs_site,
+            adaptive_landscape = al_site,
+            trait_cols = pair
+        )
+
+        plots_site <- plot_fitness_surfaces_comparison(
+            comparison_data = comparison_data_site,
+            title = paste("Fitness Surfaces Comparison -", pair_name, "-", site)
+        )
+
+        plots_site$side_by_side <- plots_site$side_by_side +
+            ggplot2::scale_colour_manual(values = rainbow(20)) +
+            ggplot2::scale_fill_manual(values = rainbow(20))
+
+        plots_site$overlay <- plots_site$overlay +
+            ggplot2::scale_colour_manual(values = rainbow(20)) +
+            ggplot2::scale_fill_manual(values = rainbow(20))
+
+
+        if (!is.null(plots_site$side_by_side)) {
+            ggplot2::ggsave(
+                file.path(figure_dir, paste0("comparison_binary_", pair_name, "_", site_label, "_side_by_side.png")),
+                plots_site$side_by_side,
+                width = 12,
+                height = 5,
+                dpi = 300
+            )
+        }
+
+        if (!is.null(plots_site$overlay)) {
+            ggplot2::ggsave(
+                file.path(figure_dir, paste0("comparison_binary_", pair_name, "_", site_label, "_overlay.png")),
+                plots_site$overlay,
+                width = 8,
+                height = 6,
+                dpi = 300
+            )
+        }
+
+        cor_df_site <- comparison_data_site$combined_data
+        individual_fit_site <- cor_df_site$fitness[cor_df_site$type == "Correlated Fitness (Individual)"]
+        population_fit_site <- cor_df_site$fitness[cor_df_site$type == "Adaptive Landscape (Population)"]
+        cor_val_site <- cor(individual_fit_site, population_fit_site, use = "complete.obs")
+
+        write.csv(
+            data.frame(
+                trait1 = pair[1],
+                trait2 = pair[2],
+                fitness = "binary",
+                comparison_type = "site",
+                site = site,
+                site_type = site_type,
+                correlation = cor_val_site,
+                n_points = length(individual_fit_site)
+            ),
+            file.path(table_dir, paste0("comparison_binary_", pair_name, "_", site_label, "_correlation.csv")),
+            row.names = FALSE
+        )
+
+        comparison_results[[paste0("binary_", pair_name, "_", site_label)]] <- list(
+            correlation = cor_val_site,
+            site = site,
+            site_type = site_type
+        )
+    }
+}
+
+# ======================================================
+# 12.2 Compare Continuous Fitness Surfaces
+# ======================================================
+
+cat("\n--- Continuous Fitness Surfaces ---\n")
+
+options(ggplot2.discrete.colour = function(...) scale_colour_manual(values = rainbow(20)))
+
+for (pair in trait_pairs) {
+    pair_name <- paste(pair, collapse = "_")
+
+    cfs_overall_file <- file.path(model_dir, paste0("cfs_continuous_", pair_name, ".rds"))
+    if (!file.exists(cfs_overall_file)) {
+        cat("  Skipping", pair_name, "- missing overall CFS\n")
+        next
+    }
+    cfs_overall <- readRDS(cfs_overall_file)
+
+    al_overall_file <- file.path(model_dir, paste0("adaptive_landscape_continuous_", pair_name, "_overall.rds"))
+    if (!file.exists(al_overall_file)) {
+        cat("  Skipping", pair_name, "- missing overall AL\n")
+        next
+    }
+    al_overall <- readRDS(al_overall_file)
+
+    cat("  Comparing:", pair_name, "(Overall)\n")
+
+    comparison_data_overall <- compare_fitness_surfaces_data(
+        correlated_surface = cfs_overall,
+        adaptive_landscape = al_overall,
+        trait_cols = pair
+    )
+
+    plots_overall <- plot_fitness_surfaces_comparison(
+        comparison_data = comparison_data_overall,
+        title = paste("Fitness Surfaces Comparison -", pair_name, "(Overall - Continuous)")
+    )
+
+    if (!is.null(plots_overall$side_by_side)) {
+        ggplot2::ggsave(
+            file.path(figure_dir, paste0("comparison_continuous_", pair_name, "_overall_side_by_side.png")),
+            plots_overall$side_by_side,
+            width = 12,
+            height = 5,
+            dpi = 300
+        )
+    }
+
+    if (!is.null(plots_overall$overlay)) {
+        ggplot2::ggsave(
+            file.path(figure_dir, paste0("comparison_continuous_", pair_name, "_overall_overlay.png")),
+            plots_overall$overlay,
+            width = 8,
+            height = 6,
+            dpi = 300
+        )
+    }
+
+    cor_df_overall <- comparison_data_overall$combined_data
+    individual_fit_overall <- cor_df_overall$fitness[cor_df_overall$type == "Correlated Fitness (Individual)"]
+    population_fit_overall <- cor_df_overall$fitness[cor_df_overall$type == "Adaptive Landscape (Population)"]
+    cor_val_overall <- cor(individual_fit_overall, population_fit_overall, use = "complete.obs")
+
+    write.csv(
+        data.frame(
+            trait1 = pair[1],
+            trait2 = pair[2],
+            fitness = "continuous",
+            comparison_type = "overall",
+            site = "Overall",
+            correlation = cor_val_overall,
+            n_points = length(individual_fit_overall)
+        ),
+        file.path(table_dir, paste0("comparison_continuous_", pair_name, "_overall_correlation.csv")),
+        row.names = FALSE
+    )
+
+    for (i in seq_along(sites)) {
+        site <- sites[i]
+        site_label <- site_labels[i]
+        site_type <- ifelse(grepl("Pond", site), "pond", "lake")
+
+        cfs_site_file <- file.path(model_dir, paste0("cfs_continuous_", pair_name, "_", site, ".rds"))
+        if (!file.exists(cfs_site_file)) {
+            cat("    Skipping", site, "- missing CFS\n")
+            next
+        }
+        cfs_site <- readRDS(cfs_site_file)
+
+        al_site_file <- file.path(model_dir, paste0("adaptive_landscape_continuous_", pair_name, "_", site_label, ".rds"))
+        if (!file.exists(al_site_file)) {
+            cat("    Skipping", site, "- missing AL\n")
+            next
+        }
+        al_site <- readRDS(al_site_file)
+
+        cat("    Comparing:", pair_name, "-", site, "(", site_type, ")\n")
+
+        comparison_data_site <- compare_fitness_surfaces_data(
+            correlated_surface = cfs_site,
+            adaptive_landscape = al_site,
+            trait_cols = pair
+        )
+
+        plots_site <- plot_fitness_surfaces_comparison(
+            comparison_data = comparison_data_site,
+            title = paste("Fitness Surfaces Comparison -", pair_name, "-", site, "(Continuous)")
+        )
+        plots_site$side_by_side <- plots_site$side_by_side +
+            ggplot2::scale_colour_manual(values = rainbow(20)) +
+            ggplot2::scale_fill_manual(values = rainbow(20))
+
+        plots_site$overlay <- plots_site$overlay +
+            ggplot2::scale_colour_manual(values = rainbow(20)) +
+            ggplot2::scale_fill_manual(values = rainbow(20))
+
+        if (!is.null(plots_site$side_by_side)) {
+            ggplot2::ggsave(
+                file.path(figure_dir, paste0("comparison_continuous_", pair_name, "_", site_label, "_side_by_side.png")),
+                plots_site$side_by_side,
+                width = 12,
+                height = 5,
+                dpi = 300
+            )
+        }
+
+        if (!is.null(plots_site$overlay)) {
+            ggplot2::ggsave(
+                file.path(figure_dir, paste0("comparison_continuous_", pair_name, "_", site_label, "_overlay.png")),
+                plots_site$overlay,
+                width = 8,
+                height = 6,
+                dpi = 300
+            )
+        }
+
+        cor_df_site <- comparison_data_site$combined_data
+        individual_fit_site <- cor_df_site$fitness[cor_df_site$type == "Correlated Fitness (Individual)"]
+        population_fit_site <- cor_df_site$fitness[cor_df_site$type == "Adaptive Landscape (Population)"]
+        cor_val_site <- cor(individual_fit_site, population_fit_site, use = "complete.obs")
+
+        write.csv(
+            data.frame(
+                trait1 = pair[1],
+                trait2 = pair[2],
+                fitness = "continuous",
+                comparison_type = "site",
+                site = site,
+                site_type = site_type,
+                correlation = cor_val_site,
+                n_points = length(individual_fit_site)
+            ),
+            file.path(table_dir, paste0("comparison_continuous_", pair_name, "_", site_label, "_correlation.csv")),
+            row.names = FALSE
+        )
+
+        comparison_results[[paste0("continuous_", pair_name, "_", site_label)]] <- list(
+            correlation = cor_val_site,
+            site = site,
+            site_type = site_type
+        )
+    }
+}
+
+# ======================================================
+# 12.3 Summary Table
+# ======================================================
+
+cat("\n=== Comparison Summary ===\n")
+
+comparison_summary <- data.frame()
+
+for (name in names(comparison_results)) {
+    res <- comparison_results[[name]]
+
+    comparison_summary <- rbind(comparison_summary, data.frame(
+        Comparison = name,
+        Correlation = round(res$correlation, 4),
+        Site = res$site,
+        stringsAsFactors = FALSE
+    ))
+}
+
+write.csv(comparison_summary, file.path(table_dir, "fitness_surfaces_comparison_summary.csv"), row.names = FALSE)

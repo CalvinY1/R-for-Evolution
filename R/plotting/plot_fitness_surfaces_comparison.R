@@ -36,6 +36,8 @@ plot_fitness_surfaces_comparison <- function(
     cor_df <- combined[combined$type == "Correlated Fitness (Individual)", ]
     ada_df <- combined[combined$type == "Adaptive Landscape (Population)", ]
 
+    n_colors <- max(bins, 20)
+
     # Left plot: Correlated Fitness (Blue)
     p_cor <- ggplot2::ggplot(cor_df, ggplot2::aes(
         x = .data[[trait_cols[1]]],
@@ -44,7 +46,7 @@ plot_fitness_surfaces_comparison <- function(
     )) +
         ggplot2::geom_contour_filled(bins = bins) +
         ggplot2::scale_fill_manual(
-            values = colorRampPalette(c("lightblue", "steelblue", "darkblue", "navy"))(bins),
+            values = colorRampPalette(c("lightblue", "steelblue", "darkblue", "navy"))(n_colors),
             name = "Fitness"
         ) +
         ggplot2::labs(
@@ -74,7 +76,7 @@ plot_fitness_surfaces_comparison <- function(
     )) +
         ggplot2::geom_contour_filled(bins = bins) +
         ggplot2::scale_fill_manual(
-            values = colorRampPalette(c("lightcoral", "coral", "darkred", "brown"))(bins),
+            values = colorRampPalette(c("lightcoral", "coral", "darkred", "brown"))(n_colors),
             name = "Mean Fitness"
         ) +
         ggplot2::labs(
