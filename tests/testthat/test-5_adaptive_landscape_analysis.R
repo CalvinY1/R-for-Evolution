@@ -8,6 +8,9 @@ test_that("adaptive_landscape calculates mean fitness on a grid", {
     z2 = rnorm(50)
   )
   
+  df$z1 <- as.numeric(scale(df$z1))
+  df$z2 <- as.numeric(scale(df$z2))
+  
   fit_model <- mgcv::gam(w ~ s(z1, z2), data = df)
   
   res <- adaptive_landscape(df, fit_model, c("z1", "z2"), simulation_n = 10, grid_n = 5)

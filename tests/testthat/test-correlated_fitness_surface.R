@@ -8,6 +8,9 @@ test_that("correlated_fitness_surface computes GAM grids", {
     z2 = rnorm(50)
   )
   
+  df$z1 <- as.numeric(scale(df$z1))
+  df$z2 <- as.numeric(scale(df$z2))
+  
   res <- correlated_fitness_surface(df, "w", c("z1", "z2"), grid_n = 10, method = "gam")
   expect_equal(res$method, "gam")
   expect_true(".fit" %in% names(res$grid))
