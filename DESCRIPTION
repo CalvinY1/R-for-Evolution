@@ -2,8 +2,24 @@ Package: RforEvolution
 Type: Package
 Title: Tools for Evolutionary Selection Analysis
 Version: 0.1.0
-Author: Taylor Papke
-Maintainer: Taylor Papke <taylor.papke@example.com>
+Authors@R: 
+    c(
+        person("James", "Stroud", email = "stroud@gatech.edu",
+            role = c("aut","cre"),
+            comment = c(affiliation = "Georgia Institute of Technology")),
+        person("Vanessa", "Zhou", 
+            role = c("aut"),
+            comment = c(affiliation = "Georgia Institute of Technology")),
+        person("Sean", "Khan", 
+            role = c("aut"),
+            comment = c(affiliation = "Georgia Institute of Technology")),
+        person("Calvin", "Yu", 
+            role = c("aut"),
+            comment = c(affiliation = "Georgia Institute of Technology")),
+        person("Taylor", "Papke", 
+            role = c("aut"),
+            comment = c(affiliation = "Georgia Institute of Technology"))
+    )
 Description: Provides a comprehensive suite of functions for estimating linear, 
     quadratic, and correlational selection gradients. Includes tools for 
     visualizing correlated fitness surfaces and population-level adaptive landscapes.
